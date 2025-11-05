@@ -7,7 +7,7 @@ let tilesetRows; // Dynamic: calculated from image height
 let spriteSize = 50;
 
 // Mosaic settings
-let tilesPerRow = 40; // Key setting
+let tilesPerRow = 70; // Key setting
 let tileSize;
 
 // let accentChance = 1 / 8; // Key setting (not currently used, but preserved)
@@ -22,7 +22,7 @@ let tilesPerFrame = 20;
 let framerate = 60;
 
 function preload() {
-    sourceImage = loadImage('source-images/test-1.png');
+    sourceImage = loadImage('source-images/test-4.png');
     tileset = loadImage('tiles/tileset.png');
 }
 
