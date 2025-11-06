@@ -1,16 +1,9 @@
-let sourceImage;
-let tileset;
 
-// Tileset properties
-let tilesetColumns = 8; // Fixed: brightness levels
-let tilesetRows; // Dynamic: calculated from image height
-let spriteSize = 50;
+// Mosaic settings 
+let sourceImage = 'test-11.png';
+let tilesPerRow = 20; // Key setting
 
-// Mosaic settings
-let tilesPerRow = 70; // Key setting
 let tileSize;
-
-// let accentChance = 1 / 8; // Key setting (not currently used, but preserved)
 
 // Progress tracking
 let currentRow = 0;
@@ -21,8 +14,16 @@ let isComplete = false;
 let tilesPerFrame = 20;
 let framerate = 60;
 
+// Tileset properties
+let spriteSize = 50;
+let tilesetColumns = 8;
+let tilesetRows;
+
+let tileset;
+let sourceImagePath;
+
 function preload() {
-    sourceImage = loadImage('source-images/test-4.png');
+    sourceImagePath = loadImage('source-images/' + sourceImage);
     tileset = loadImage('tiles/tileset.png');
 }
 
@@ -32,19 +33,15 @@ function setup() {
 
     frameRate(framerate);
 
-    // Calculate number of rows in tileset
     tilesetRows = tileset.height / spriteSize;
     console.log(`Tileset loaded: ${tilesetColumns} columns, ${tilesetRows} rows`);
+    tileSize = sourceImagePath.width / tilesPerRow;
 
-    // Do these buttons need to be declared in setup? They can't be declared up top?
     let saveButton = createButton('Save Image');
-    let runButton = createButton('Begin Tiling');
 
-    saveButton.position(100, 15);
-    runButton.position(200, 15);
+    saveButton.position(40, 15);
 
     saveButton.mousePressed(saveProof);
-    runButton.mousePressed(startTiling);
 }
 
 function saveProof() {
@@ -53,17 +50,26 @@ function saveProof() {
 }
 
 function startTiling() {
-    // Reset progress
     currentRow = 0;
     currentCol = 0;
     isComplete = false;
     background(255);
 }
 
-// Tile doesn't loop—it only incrementally runs when the runButton is pressed—it should run until completed, or restart if hit while it's running. 
-function tile() {
-    tileSize = sourceImage.width / tilesPerRow;
+function timeStamp() {
+    textSize(16);
+    fill(215);
 
+    let settingsCode = (
+        "Weaver v.02" + "\n" +
+        "Res: " + String(tilesPerRow) + "\n" +
+        "Tilesize: " + String(1000 / tilesPerRow)
+    );
+
+    text(settingsCode, 840, 30);
+}
+
+function tile() {
     if (isComplete) {
         noLoop();
         return;
@@ -79,12 +85,13 @@ function tile() {
         let x = currentCol * tileSize;
         let y = currentRow * tileSize;
 
-        let tileChunk = sourceImage.get(x, y, tileSize, tileSize);
+        let tileChunk = sourceImagePath.get(x, y, tileSize, tileSize);
         tileChunk.loadPixels();
 
         let totalBrightness = 0;
         let pixelCount = tileChunk.pixels.length / 4;
 
+        // Calculate brightness of chunk
         for (let j = 0; j < tileChunk.pixels.length; j += 4) {
             let r = tileChunk.pixels[j];
             let g = tileChunk.pixels[j + 1];
@@ -95,13 +102,13 @@ function tile() {
         }
 
         let avgBrightness = totalBrightness / pixelCount;
-        
+
         // Map brightness to column (0-7 for columns 1-8)
         let columnIndex = floor(map(avgBrightness, 0, 255, 0, tilesetColumns - 0.01));
-        
+
         // Randomly select a row variation
         let rowIndex = floor(Math.random() * tilesetRows);
-        
+
         // Calculate source position in tileset
         let sx = columnIndex * spriteSize;
         let sy = rowIndex * spriteSize;
@@ -120,7 +127,5 @@ function tile() {
 
 function draw() {
     tile();
-    let settingsStamp = "Res: " + String(tilesPerRow); 
-    textSize(18);
-    text(settingsStamp, 910, 30);
+    timeStamp();
 }
