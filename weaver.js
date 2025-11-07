@@ -11,7 +11,7 @@ let currentCol = 0;
 let isComplete = false;
 
 // Loading speed controls
-let tilesPerFrame = 20;
+let tilesPerFrame = 40;
 let framerate = 60;
 
 // Tileset properties
