@@ -22,6 +22,29 @@ let tilesetRows;
 let tileset;
 let sourceImagePath;
 
+// App state object - tracks everything
+const appState = {
+  mode: 'image',  // 'image' or 'video'
+  
+  // Image mode
+  currentImage: null,
+  canvasWidth: 1000,
+  canvasHeight: 1000,
+  tilesPerRow: 20,
+  
+  // Processing state
+  isProcessing: false,
+  isComplete: false,
+  currentRow: 0,
+  currentCol: 0,
+  
+  // Assets
+  tileset: null,
+  tilesetColumns: 8,
+  tilesetRows: 0,
+  spriteSize: 50
+};
+
 function preload() {
     sourceImagePath = loadImage('source-images/' + sourceImage);
     tileset = loadImage('tiles/tileset.png');

@@ -3,17 +3,511 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Mosaic</title>
+  <title>Weaver v0.4</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js"></script>
-  <script language="javascript" type="text/javascript" src="./libraries/p5.gui.js"></script>
-  <script language="javascript" type="text/javascript" src="./libraries/quicksettings.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-  <!-- <script src="video-weaver.js"></script> -->
-  <script src="weaver.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Courier New', monospace; }
+    input[type="number"], input[type="range"] {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #f5f5f5;
+      padding: 8px 12px;
+    }
+    input[type="number"] { width: 100px; }
+    input[type="range"] { flex: 1; }
+    button {
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+      letter-spacing: 1px;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+    button:hover:not(:disabled) {
+      border-color: #f5f5f5;
+    }
+    button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .active-tab {
+      background: #f5f5f5 !important;
+      color: #0a0a0a !important;
+    }
+    #canvasContainer canvas {
+      display: block;
+      border: 1px solid #333;
+    }
+  </style>
 </head>
-<body class="bg-gray-400 p-10">
-  <div class=""> 
-    <p>Weaver 0.3</p>
+<body class="bg-[#0a0a0a] min-h-screen p-8 text-[#f5f5f5]">
+  <div class="max-w-5xl mx-auto">
+    
+    <!-- Header -->
+    <div class="mb-8 border-b border-gray-800 pb-4">
+      <h1 class="text-2xl tracking-widest">WEAVER v0.4</h1>
+      <p class="text-sm text-gray-600 mt-1">PHOTOMOSAIC PROCESSOR</p>
+    </div>
+    
+    <!-- Mode Tabs -->
+    <div class="mb-6 flex gap-2">
+      <button id="imageMode" class="px-6 py-2 bg-[#f5f5f5] text-[#0a0a0a] active-tab">IMAGE</button>
+      <button id="videoMode" class="px-6 py-2 bg-[#1a1a1a] text-[#666]">VIDEO (COMING SOON)</button>
+    </div>
+    
+    <!-- Image Mode Controls -->
+    <div id="imageControls" class="space-y-6 mb-8">
+      
+      <!-- Canvas Size (Auto) -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">CANVAS SIZE</label>
+        <span id="canvasSizeDisplay" class="text-sm text-gray-500">Auto-set from image</span>
+      </div>
+      
+      <!-- Resolution Slider -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TILE RESOLUTION</label>
+        <input type="range" id="resolution" min="10" max="200" value="20" step="1">
+        <span id="resValue" class="w-12 text-right">20</span>
+        <span class="text-xs text-gray-600">tiles wide</span>
+      </div>
+      
+      <!-- Tile Size Display -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TILE SIZE</label>
+        <span id="tileSizeDisplay" class="text-sm text-gray-500">50.0 × 50.0 px</span>
+      </div>
+      
+      <!-- Total Tiles Display -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TOTAL TILES</label>
+        <span id="totalTilesDisplay" class="text-sm text-gray-500">400 tiles</span>
+      </div>
+      
+      <!-- Validation Warning -->
+      <div id="validationWarning" class="hidden">
+        <div class="flex items-center gap-4 bg-yellow-900/20 border border-yellow-700/50 p-3 rounded">
+          <span class="text-yellow-500 text-sm">⚠</span>
+          <span id="warningText" class="text-sm text-yellow-400"></span>
+        </div>
+      </div>
+      
+      <!-- Image Upload -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">SOURCE IMAGE</label>
+        <input type="file" id="imageUpload" accept="image/*" class="text-sm text-gray-400">
+      </div>
+      
+      <!-- Status -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">STATUS</label>
+        <span id="statusText" class="text-sm text-gray-500">READY</span>
+      </div>
+      
+      <!-- Action Buttons -->
+      <div class="flex gap-2 mt-8 pt-4 border-t border-gray-800">
+        <button id="startBtn" class="px-8 py-3 bg-[#f5f5f5] text-[#0a0a0a]">START</button>
+        <button id="pauseBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>PAUSE</button>
+        <button id="resumeBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>RESUME</button>
+        <button id="downloadBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>DOWNLOAD</button>
+      </div>
+      
+    </div>
+    
+    <!-- Canvas Container -->
+    <div id="canvasContainer" class="mt-8"></div>
+    
   </div>
+
+  <script>
+    // ===========================
+    // STATE & CONFIGURATION
+    // ===========================
+    
+    const appState = {
+      mode: 'image',
+      
+      // Canvas settings
+      canvasWidth: 1000,
+      canvasHeight: 1000,
+      tilesPerRow: 20,
+      tilesPerCol: 20,  // NEW: separate column count
+      tileSize: 50,
+      
+      // Processing state
+      isProcessing: false,
+      isPaused: false,
+      isComplete: false,
+      currentRow: 0,
+      currentCol: 0,
+      
+      // Assets
+      sourceImage: null,
+      tileset: null,
+      tilesetColumns: 8,
+      tilesetRows: 0,
+      spriteSize: 50,
+      
+      // Performance
+      tilesPerFrame: 100  // Process many tiles per frame for max speed
+    };
+
+    // ===========================
+    // UI REFERENCES
+    // ===========================
+    
+    const ui = {
+      canvasSizeDisplay: document.getElementById('canvasSizeDisplay'),
+      resolution: document.getElementById('resolution'),
+      resValue: document.getElementById('resValue'),
+      tileSizeDisplay: document.getElementById('tileSizeDisplay'),
+      totalTilesDisplay: document.getElementById('totalTilesDisplay'),
+      validationWarning: document.getElementById('validationWarning'),
+      warningText: document.getElementById('warningText'),
+      imageUpload: document.getElementById('imageUpload'),
+      statusText: document.getElementById('statusText'),
+      startBtn: document.getElementById('startBtn'),
+      pauseBtn: document.getElementById('pauseBtn'),
+      resumeBtn: document.getElementById('resumeBtn'),
+      downloadBtn: document.getElementById('downloadBtn')
+    };
+
+    // ===========================
+    // CORE FUNCTIONS
+    // ===========================
+    
+    function setCanvasSizeFromImage(img) {
+      let w = img.width;
+      let h = img.height;
+      
+      // Constrain to 400-2000px range
+      const minSize = 400;
+      const maxSize = 2000;
+      
+      // If image is too large, scale it down proportionally
+      if (w > maxSize || h > maxSize) {
+        const scale = Math.min(maxSize / w, maxSize / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      
+      // If image is too small, scale it up proportionally
+      if (w < minSize || h < minSize) {
+        const scale = Math.max(minSize / w, minSize / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      
+      appState.canvasWidth = w;
+      appState.canvasHeight = h;
+      
+      // Update display
+      ui.canvasSizeDisplay.textContent = `${w} × ${h} px`;
+      
+      return { width: w, height: h };
+    }
+    
+    function validateSettings() {
+      const warnings = [];
+      const totalTiles = appState.tilesPerRow * appState.tilesPerRow;
+      const tileArea = appState.tileSize * appState.tileSize;
+      
+      // Check for extremely high tile counts
+      if (totalTiles > 40000) {
+        warnings.push(`HIGH TILE COUNT (${totalTiles.toLocaleString()}) - May cause slowdown`);
+      } else if (totalTiles > 60000) {
+        warnings.push(`EXTREME TILE COUNT (${totalTiles.toLocaleString()}) - Processing will be very slow`);
+      }
+      
+      // Check for tiny tiles
+      if (appState.tileSize < 5) {
+        warnings.push(`TILES TOO SMALL (${appState.tileSize}px) - Results may look pixelated`);
+      }
+      
+      // Check for huge tiles
+      if (appState.tileSize > 100) {
+        warnings.push(`TILES TOO LARGE (${appState.tileSize}px) - Consider higher resolution`);
+      }
+      
+      // Cap maximum resolution
+      if (appState.tilesPerRow > 300) {
+        appState.tilesPerRow = 300;
+        ui.resolution.value = 300;
+        ui.resValue.textContent = '300';
+        warnings.push('RESOLUTION CAPPED AT 300 - Maximum safe limit reached');
+      }
+      
+      // Display warnings
+      if (warnings.length > 0) {
+        ui.warningText.textContent = warnings[0];
+        ui.validationWarning.classList.remove('hidden');
+      } else {
+        ui.validationWarning.classList.add('hidden');
+      }
+      
+      return warnings.length === 0;
+    }
+    
+    function calculateTileSize() {
+      const exactSize = appState.canvasWidth / appState.tilesPerRow;
+      // Snap to whole pixels to avoid tearing
+      const snappedSize = Math.round(exactSize);
+      
+      // Recalculate tiles to fit exactly
+      const actualTilesWide = Math.floor(appState.canvasWidth / snappedSize);
+      const actualTilesHigh = Math.floor(appState.canvasHeight / snappedSize);
+      
+      appState.tileSize = snappedSize;
+      appState.tilesPerRow = actualTilesWide;
+      appState.tilesPerCol = actualTilesHigh;  // NEW: calculate height separately
+      
+      updateDisplays();
+      validateSettings();
+    }
+    
+    function updateDisplays() {
+      // Update tile size display
+      ui.tileSizeDisplay.textContent = `${appState.tileSize} × ${appState.tileSize} px`;
+      
+      // Update total tiles display (now using width × height)
+      const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
+      ui.totalTilesDisplay.textContent = `${totalTiles.toLocaleString()} tiles (${appState.tilesPerRow}×${appState.tilesPerCol})`;
+      
+      // Update resolution value
+      ui.resValue.textContent = appState.tilesPerRow;
+    }
+    
+    function getTileBrightness(x, y, size) {
+      let chunk = appState.sourceImage.get(x, y, size, size);
+      chunk.loadPixels();
+      
+      let total = 0;
+      let count = chunk.pixels.length / 4;
+      
+      for (let i = 0; i < chunk.pixels.length; i += 4) {
+        let r = chunk.pixels[i];
+        let g = chunk.pixels[i + 1];
+        let b = chunk.pixels[i + 2];
+        total += 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+      
+      return total / count;
+    }
+    
+    function placeTile(x, y, brightness) {
+      // Map brightness to column (0-7)
+      let col = floor(map(brightness, 0, 255, 0, appState.tilesetColumns - 0.01));
+      
+      // Random row variation
+      let row = floor(Math.random() * appState.tilesetRows);
+      
+      // Source position in tileset
+      let sx = col * appState.spriteSize;
+      let sy = row * appState.spriteSize;
+      
+      // Draw the tile
+      image(
+        appState.tileset,
+        x, y, appState.tileSize, appState.tileSize,
+        sx, sy, appState.spriteSize, appState.spriteSize
+      );
+    }
+    
+    function processTiles() {
+      if (!appState.isProcessing || appState.isPaused || appState.isComplete) {
+        return;
+      }
+      
+      let tilesProcessed = 0;
+      let startRow = appState.currentRow;
+      let startCol = appState.currentCol;
+      
+      while (tilesProcessed < appState.tilesPerFrame) {
+        // Check if we've completed all rows
+        if (appState.currentRow >= appState.tilesPerCol) {
+          completeProcessing();
+          break;
+        }
+        
+        let x = appState.currentCol * appState.tileSize;
+        let y = appState.currentRow * appState.tileSize;
+        
+        // Ensure we don't go out of bounds
+        if (x >= appState.canvasWidth || y >= appState.canvasHeight) {
+          appState.currentCol = 0;
+          appState.currentRow++;
+          continue;
+        }
+        
+        let brightness = getTileBrightness(x, y, appState.tileSize);
+        placeTile(x, y, brightness);
+        
+        // Move to next tile
+        appState.currentCol++;
+        if (appState.currentCol >= appState.tilesPerRow) {
+          appState.currentCol = 0;
+          appState.currentRow++;
+        }
+        
+        tilesProcessed++;
+      }
+      
+      // Debug first call only
+      if (startRow === 0 && startCol === 0) {
+        console.log(`First processTiles() call: started at [${startRow},${startCol}], processed ${tilesProcessed} tiles, now at [${appState.currentRow},${appState.currentCol}]`);
+      }
+      
+      // Update status
+      let totalTiles = appState.tilesPerRow * appState.tilesPerCol;
+      let currentTile = appState.currentRow * appState.tilesPerRow + appState.currentCol;
+      let percent = Math.min(100, ((currentTile / totalTiles) * 100)).toFixed(1);
+      ui.statusText.textContent = `PROCESSING: ${percent}%`;
+    }
+
+    // ===========================
+    // UI HANDLERS
+    // ===========================
+    
+    function startProcessing() {
+      if (!appState.sourceImage || !appState.tileset) {
+        ui.statusText.textContent = 'ERROR: LOAD IMAGE & TILESET';
+        return;
+      }
+      
+      // Validate before starting
+      if (!validateSettings()) {
+        // Still allow processing, but user has been warned
+      }
+      
+      // CRITICAL: Reset state completely
+      appState.currentRow = 0;
+      appState.currentCol = 0;
+      appState.isComplete = false;
+      appState.isPaused = false;
+      
+      // Recalculate tile size FIRST
+      calculateTileSize();
+      
+      // Update canvas size AFTER calculations
+      resizeCanvas(appState.canvasWidth, appState.canvasHeight);
+      background(255);
+      
+      console.log(`Starting: ${appState.tilesPerRow}×${appState.tilesPerCol} tiles, size: ${appState.tileSize}px`);
+      console.log(`Initial position: row=${appState.currentRow}, col=${appState.currentCol}`);
+      
+      // Set processing flag LAST, right before loop
+      appState.isProcessing = true;
+      
+      // Update UI
+      ui.startBtn.disabled = true;
+      ui.pauseBtn.disabled = false;
+      ui.resumeBtn.disabled = true;
+      ui.downloadBtn.disabled = true;
+      ui.statusText.textContent = 'PROCESSING: 0%';
+      
+      loop();
+    }
+    
+    function pauseProcessing() {
+      appState.isPaused = true;
+      ui.pauseBtn.disabled = true;
+      ui.resumeBtn.disabled = false;
+      ui.statusText.textContent = 'PAUSED';
+    }
+    
+    function resumeProcessing() {
+      appState.isPaused = false;
+      ui.pauseBtn.disabled = false;
+      ui.resumeBtn.disabled = true;
+      loop();
+    }
+    
+    function completeProcessing() {
+      appState.isComplete = true;
+      appState.isProcessing = false;
+      ui.startBtn.disabled = false;
+      ui.pauseBtn.disabled = true;
+      ui.resumeBtn.disabled = true;
+      ui.downloadBtn.disabled = false;
+      ui.statusText.textContent = 'COMPLETE';
+      noLoop();
+    }
+    
+    function downloadImage() {
+      let timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
+      let filename = `weaver-${appState.tilesPerRow}x-${timestamp}`;
+      saveCanvas(filename, 'png');
+    }
+
+    // ===========================
+    // EVENT LISTENERS
+    // ===========================
+    
+    ui.resolution.addEventListener('input', (e) => {
+      appState.tilesPerRow = parseInt(e.target.value);
+      ui.resValue.textContent = e.target.value;
+      calculateTileSize();
+    });
+    
+    ui.imageUpload.addEventListener('change', (e) => {
+      let file = e.target.files[0];
+      if (file) {
+        let reader = new FileReader();
+        reader.onload = (event) => {
+          loadImage(event.target.result, (img) => {
+            appState.sourceImage = img;
+            
+            // Auto-set canvas size from image
+            setCanvasSizeFromImage(img);
+            
+            // Recalculate with new dimensions
+            calculateTileSize();
+            
+            ui.statusText.textContent = 'IMAGE LOADED - READY TO START';
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    ui.startBtn.addEventListener('click', startProcessing);
+    ui.pauseBtn.addEventListener('click', pauseProcessing);
+    ui.resumeBtn.addEventListener('click', resumeProcessing);
+    ui.downloadBtn.addEventListener('click', downloadImage);
+
+    // ===========================
+    // P5.JS LIFECYCLE
+    // ===========================
+    
+    function preload() {
+      // Load your actual tileset here
+      appState.tileset = loadImage('tiles/tileset.png');
+    }
+    
+    function setup() {
+      // Create initial canvas at default size
+      let canvas = createCanvas(appState.canvasWidth, appState.canvasHeight);
+      canvas.parent('canvasContainer');
+      pixelDensity(1);
+      
+      frameRate(60);
+      noLoop();
+      
+      // Calculate tileset dimensions
+      appState.tilesetRows = appState.tileset.height / appState.spriteSize;
+      
+      // Initial calculations
+      calculateTileSize();
+      
+      ui.statusText.textContent = 'READY - LOAD SOURCE IMAGE';
+    }
+    
+    function draw() {
+      // Only process if we're actively processing
+      if (appState.isProcessing && !appState.isPaused && !appState.isComplete) {
+        processTiles();
+      }
+    }
+  </script>
 </body>
 </html>
