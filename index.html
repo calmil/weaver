@@ -120,124 +120,507 @@
   </div>
 
   <script>
-    // ===========================
-    // STATE & CONFIGURATION
-    // ===========================
+    // ============================================================================
+    // CONSTANTS & CONFIGURATION
+    // ============================================================================
+    
+    const CONFIG = {
+      // Canvas constraints
+      CANVAS_MIN_SIZE: 400,
+      CANVAS_MAX_SIZE: 2000,
+      
+      // Resolution limits
+      MIN_TILES_PER_ROW: 10,
+      MAX_TILES_PER_ROW: 300,
+      DEFAULT_TILES_PER_ROW: 20,
+      
+      // Tileset structure
+      TILESET_COLUMNS: 8,        // 8 brightness levels (0-7, dark to bright)
+      SPRITE_SIZE: 50,            // Each tile in tileset is 50x50px
+      
+      // Performance
+      TILES_PER_FRAME: 100,       // Process 100 tiles per frame for speed
+      TARGET_FRAMERATE: 60,
+      
+      // Validation thresholds
+      WARNING_TILE_COUNT_HIGH: 40000,
+      WARNING_TILE_COUNT_EXTREME: 60000,
+      WARNING_TILE_SIZE_SMALL: 5,
+      WARNING_TILE_SIZE_LARGE: 100,
+      
+      // Brightness calculation weights (ITU-R BT.601 luminance)
+      LUMINANCE_R: 0.299,
+      LUMINANCE_G: 0.587,
+      LUMINANCE_B: 0.114
+    };
+    
+    // Processing states
+    const ProcessingState = {
+      IDLE: 'idle',
+      READY: 'ready',
+      PROCESSING: 'processing',
+      PAUSED: 'paused',
+      COMPLETE: 'complete',
+      ERROR: 'error'
+    };
+
+    // ============================================================================
+    // APPLICATION STATE
+    // ============================================================================
     
     const appState = {
+      // Current mode
       mode: 'image',
       
-      // Canvas settings
+      // Canvas dimensions (calculated from source image)
       canvasWidth: 1000,
       canvasHeight: 1000,
-      tilesPerRow: 20,
-      tilesPerCol: 20,  // NEW: separate column count
+      
+      // Tile grid layout
+      tilesPerRow: CONFIG.DEFAULT_TILES_PER_ROW,
+      tilesPerCol: CONFIG.DEFAULT_TILES_PER_ROW,
       tileSize: 50,
       
       // Processing state
-      isProcessing: false,
-      isPaused: false,
-      isComplete: false,
+      state: ProcessingState.IDLE,
       currentRow: 0,
       currentCol: 0,
       
-      // Assets
+      // Loaded assets
       sourceImage: null,
       tileset: null,
-      tilesetColumns: 8,
-      tilesetRows: 0,
-      spriteSize: 50,
+      tilesetRows: 0,  // Calculated after tileset loads
       
-      // Performance
-      tilesPerFrame: 100  // Process many tiles per frame for max speed
+      // Performance tracking
+      tilesPerFrame: CONFIG.TILES_PER_FRAME
     };
 
-    // ===========================
-    // UI REFERENCES
-    // ===========================
+    // ============================================================================
+    // UI ELEMENT REFERENCES
+    // ============================================================================
     
     const ui = {
+      // Displays
       canvasSizeDisplay: document.getElementById('canvasSizeDisplay'),
-      resolution: document.getElementById('resolution'),
-      resValue: document.getElementById('resValue'),
       tileSizeDisplay: document.getElementById('tileSizeDisplay'),
       totalTilesDisplay: document.getElementById('totalTilesDisplay'),
+      statusText: document.getElementById('statusText'),
+      resValue: document.getElementById('resValue'),
+      
+      // Inputs
+      resolution: document.getElementById('resolution'),
+      imageUpload: document.getElementById('imageUpload'),
+      
+      // Warnings
       validationWarning: document.getElementById('validationWarning'),
       warningText: document.getElementById('warningText'),
-      imageUpload: document.getElementById('imageUpload'),
-      statusText: document.getElementById('statusText'),
+      
+      // Buttons
       startBtn: document.getElementById('startBtn'),
       pauseBtn: document.getElementById('pauseBtn'),
       resumeBtn: document.getElementById('resumeBtn'),
       downloadBtn: document.getElementById('downloadBtn')
     };
 
-    // ===========================
-    // CORE FUNCTIONS
-    // ===========================
+    // ============================================================================
+    // CANVAS & DIMENSION MANAGEMENT
+    // ============================================================================
     
-    function setCanvasSizeFromImage(img) {
-      let w = img.width;
-      let h = img.height;
+    /**
+     * Calculates constrained canvas dimensions from source image
+     * Maintains aspect ratio while staying within min/max bounds
+     * @param {p5.Image} img - Source image
+     * @returns {Object} - {width, height} in pixels
+     */
+    function calculateCanvasDimensions(img) {
+      let width = img.width;
+      let height = img.height;
       
-      // Constrain to 400-2000px range
-      const minSize = 400;
-      const maxSize = 2000;
+      const { CANVAS_MIN_SIZE, CANVAS_MAX_SIZE } = CONFIG;
       
-      // If image is too large, scale it down proportionally
-      if (w > maxSize || h > maxSize) {
-        const scale = Math.min(maxSize / w, maxSize / h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+      // Scale down if too large
+      if (width > CANVAS_MAX_SIZE || height > CANVAS_MAX_SIZE) {
+        const scale = Math.min(CANVAS_MAX_SIZE / width, CANVAS_MAX_SIZE / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
       }
       
-      // If image is too small, scale it up proportionally
-      if (w < minSize || h < minSize) {
-        const scale = Math.max(minSize / w, minSize / h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+      // Scale up if too small
+      if (width < CANVAS_MIN_SIZE || height < CANVAS_MIN_SIZE) {
+        const scale = Math.max(CANVAS_MIN_SIZE / width, CANVAS_MIN_SIZE / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
       }
       
-      appState.canvasWidth = w;
-      appState.canvasHeight = h;
-      
-      // Update display
-      ui.canvasSizeDisplay.textContent = `${w} × ${h} px`;
-      
-      return { width: w, height: h };
+      return { width, height };
     }
     
+    /**
+     * Updates canvas size based on source image and updates UI
+     * @param {p5.Image} img - Source image
+     */
+    function setCanvasSizeFromImage(img) {
+      const dimensions = calculateCanvasDimensions(img);
+      appState.canvasWidth = dimensions.width;
+      appState.canvasHeight = dimensions.height;
+      
+      ui.canvasSizeDisplay.textContent = `${dimensions.width} × ${dimensions.height} px`;
+    }
+    
+    /**
+     * Calculates optimal tile size and grid layout
+     * Snaps to whole pixels to prevent tearing artifacts
+     * Updates tilesPerRow, tilesPerCol, and tileSize in appState
+     */
+    function calculateTileLayout() {
+      // Calculate exact tile size from desired resolution
+      const exactSize = appState.canvasWidth / appState.tilesPerRow;
+      
+      // Snap to whole pixels
+      const snappedSize = Math.round(exactSize);
+      
+      // Recalculate actual tile counts that fit exactly
+      const actualTilesWide = Math.floor(appState.canvasWidth / snappedSize);
+      const actualTilesHigh = Math.floor(appState.canvasHeight / snappedSize);
+      
+      // Update state
+      appState.tileSize = snappedSize;
+      appState.tilesPerRow = actualTilesWide;
+      appState.tilesPerCol = actualTilesHigh;
+      
+      // Update UI displays and validate
+      updateAllDisplays();
+      validateSettings();
+    }
+
+    // ============================================================================
+    // BRIGHTNESS & TILE ANALYSIS
+    // ============================================================================
+    
+    /**
+     * Calculates average brightness of an image region using luminance formula
+     * @param {number} x - Left edge of region
+     * @param {number} y - Top edge of region
+     * @param {number} size - Width and height of region
+     * @returns {number} - Average brightness (0-255)
+     */
+    function calculateRegionBrightness(x, y, size) {
+      const region = appState.sourceImage.get(x, y, size, size);
+      region.loadPixels();
+      
+      const { LUMINANCE_R, LUMINANCE_G, LUMINANCE_B } = CONFIG;
+      const pixelCount = region.pixels.length / 4;
+      let totalBrightness = 0;
+      
+      // Sum brightness using ITU-R BT.601 luminance weights
+      for (let i = 0; i < region.pixels.length; i += 4) {
+        const r = region.pixels[i];
+        const g = region.pixels[i + 1];
+        const b = region.pixels[i + 2];
+        totalBrightness += LUMINANCE_R * r + LUMINANCE_G * g + LUMINANCE_B * b;
+      }
+      
+      return totalBrightness / pixelCount;
+    }
+    
+    /**
+     * Maps brightness value to tileset column (0-7)
+     * @param {number} brightness - Brightness value (0-255)
+     * @returns {number} - Column index (0-7)
+     */
+    function brightnessToColumn(brightness) {
+      // Subtract small epsilon to prevent hitting column 8
+      return floor(map(brightness, 0, 255, 0, CONFIG.TILESET_COLUMNS - 0.01));
+    }
+    
+    /**
+     * Selects random row for tile variation
+     * @returns {number} - Row index
+     */
+    function selectRandomTileRow() {
+      return floor(Math.random() * appState.tilesetRows);
+    }
+
+    // ============================================================================
+    // TILE RENDERING
+    // ============================================================================
+    
+    /**
+     * Places a single tile on the canvas based on brightness
+     * @param {number} x - Canvas x position (pixels)
+     * @param {number} y - Canvas y position (pixels)
+     * @param {number} brightness - Brightness value (0-255)
+     */
+    function renderTile(x, y, brightness) {
+      const column = brightnessToColumn(brightness);
+      const row = selectRandomTileRow();
+      
+      // Calculate source position in tileset spritesheet
+      const sourceX = column * CONFIG.SPRITE_SIZE;
+      const sourceY = row * CONFIG.SPRITE_SIZE;
+      
+      // Draw tile stretched/shrunk to target size
+      image(
+        appState.tileset,
+        x, y, appState.tileSize, appState.tileSize,
+        sourceX, sourceY, CONFIG.SPRITE_SIZE, CONFIG.SPRITE_SIZE
+      );
+    }
+    
+    /**
+     * Processes a batch of tiles (called each frame during processing)
+     * Continues from appState.currentRow and appState.currentCol
+     */
+    function processTileBatch() {
+      // Don't process if not in active processing state
+      if (appState.state !== ProcessingState.PROCESSING) {
+        return;
+      }
+      
+      let tilesProcessed = 0;
+      const startRow = appState.currentRow;
+      const startCol = appState.currentCol;
+      
+      while (tilesProcessed < appState.tilesPerFrame) {
+        // Check if completed all rows
+        if (appState.currentRow >= appState.tilesPerCol) {
+          handleProcessingComplete();
+          break;
+        }
+        
+        const x = appState.currentCol * appState.tileSize;
+        const y = appState.currentRow * appState.tileSize;
+        
+        // Safety check: skip if out of bounds
+        if (x >= appState.canvasWidth || y >= appState.canvasHeight) {
+          advanceToNextTile();
+          continue;
+        }
+        
+        // Calculate and place tile
+        const brightness = calculateRegionBrightness(x, y, appState.tileSize);
+        renderTile(x, y, brightness);
+        
+        // Move to next tile position
+        advanceToNextTile();
+        tilesProcessed++;
+      }
+      
+      // Debug logging for first batch only
+      if (startRow === 0 && startCol === 0) {
+        console.log(`First batch: processed ${tilesProcessed} tiles, now at [${appState.currentRow},${appState.currentCol}]`);
+      }
+      
+      // Update progress display
+      updateProgressDisplay();
+    }
+    
+    /**
+     * Advances tile position to next in grid (left-to-right, top-to-bottom)
+     */
+    function advanceToNextTile() {
+      appState.currentCol++;
+      if (appState.currentCol >= appState.tilesPerRow) {
+        appState.currentCol = 0;
+        appState.currentRow++;
+      }
+    }
+
+    // ============================================================================
+    // STATE MANAGEMENT
+    // ============================================================================
+    
+    /**
+     * Checks if currently processing tiles
+     * @returns {boolean}
+     */
+    function isProcessing() {
+      return appState.state === ProcessingState.PROCESSING;
+    }
+    
+    /**
+     * Checks if assets are loaded and ready
+     * @returns {boolean}
+     */
+    function isReady() {
+      return appState.sourceImage !== null && appState.tileset !== null;
+    }
+    
+    /**
+     * Resets processing position to start
+     */
+    function resetProcessingPosition() {
+      appState.currentRow = 0;
+      appState.currentCol = 0;
+    }
+    
+    /**
+     * Initiates processing from the beginning
+     */
+    function startProcessing() {
+      if (!isReady()) {
+        setStatus('ERROR: LOAD IMAGE & TILESET', ProcessingState.ERROR);
+        return;
+      }
+      
+      // Validate settings (warns but doesn't block)
+      validateSettings();
+      
+      // Reset state FIRST before anything else
+      resetProcessingPosition();
+      
+      // Recalculate layout and resize canvas
+      calculateTileLayout();
+      resizeCanvas(appState.canvasWidth, appState.canvasHeight);
+      background(255);
+      
+      // Set processing state AFTER canvas is ready
+      appState.state = ProcessingState.PROCESSING;
+      
+      // Update UI
+      updateButtonStates();
+      setStatus('PROCESSING: 0%', ProcessingState.PROCESSING);
+      
+      // Start render loop LAST
+      loop();
+      
+      console.log(`Started: ${appState.tilesPerRow}×${appState.tilesPerCol} tiles @ ${appState.tileSize}px`);
+      console.log(`Initial position: row=${appState.currentRow}, col=${appState.currentCol}`);
+    }
+    
+    /**
+     * Pauses processing (can be resumed)
+     */
+    function pauseProcessing() {
+      appState.state = ProcessingState.PAUSED;
+      updateButtonStates();
+      setStatus('PAUSED', ProcessingState.PAUSED);
+    }
+    
+    /**
+     * Resumes paused processing
+     */
+    function resumeProcessing() {
+      appState.state = ProcessingState.PROCESSING;
+      updateButtonStates();
+      loop();
+    }
+    
+    /**
+     * Handles processing completion
+     */
+    function handleProcessingComplete() {
+      appState.state = ProcessingState.COMPLETE;
+      updateButtonStates();
+      setStatus('COMPLETE', ProcessingState.COMPLETE);
+      noLoop();
+      console.log('Processing complete');
+    }
+
+    // ============================================================================
+    // UI UPDATES
+    // ============================================================================
+    
+    /**
+     * Updates all display elements
+     */
+    function updateAllDisplays() {
+      updateTileSizeDisplay();
+      updateTotalTilesDisplay();
+      updateResolutionDisplay();
+    }
+    
+    /**
+     * Updates tile size display
+     */
+    function updateTileSizeDisplay() {
+      ui.tileSizeDisplay.textContent = `${appState.tileSize} × ${appState.tileSize} px`;
+    }
+    
+    /**
+     * Updates total tiles display
+     */
+    function updateTotalTilesDisplay() {
+      const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
+      ui.totalTilesDisplay.textContent = 
+        `${totalTiles.toLocaleString()} tiles (${appState.tilesPerRow}×${appState.tilesPerCol})`;
+    }
+    
+    /**
+     * Updates resolution value display
+     */
+    function updateResolutionDisplay() {
+      ui.resValue.textContent = appState.tilesPerRow;
+    }
+    
+    /**
+     * Updates processing progress percentage
+     */
+    function updateProgressDisplay() {
+      const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
+      const currentTile = appState.currentRow * appState.tilesPerRow + appState.currentCol;
+      const percent = Math.min(100, ((currentTile / totalTiles) * 100)).toFixed(1);
+      ui.statusText.textContent = `PROCESSING: ${percent}%`;
+    }
+    
+    /**
+     * Sets status text and optionally updates state
+     * @param {string} message - Status message
+     * @param {string} [state] - Optional state to set
+     */
+    function setStatus(message, state = null) {
+      ui.statusText.textContent = message;
+      if (state) {
+        appState.state = state;
+      }
+    }
+    
+    /**
+     * Updates button enabled/disabled states based on current app state
+     */
+    function updateButtonStates() {
+      const { state } = appState;
+      
+      ui.startBtn.disabled = (state === ProcessingState.PROCESSING);
+      ui.pauseBtn.disabled = (state !== ProcessingState.PROCESSING);
+      ui.resumeBtn.disabled = (state !== ProcessingState.PAUSED);
+      ui.downloadBtn.disabled = (state !== ProcessingState.COMPLETE);
+    }
+
+    // ============================================================================
+    // VALIDATION
+    // ============================================================================
+    
+    /**
+     * Validates current settings and displays warnings
+     * @returns {boolean} - True if settings are within safe limits
+     */
     function validateSettings() {
       const warnings = [];
-      const totalTiles = appState.tilesPerRow * appState.tilesPerRow;
-      const tileArea = appState.tileSize * appState.tileSize;
+      const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
       
-      // Check for extremely high tile counts
-      if (totalTiles > 40000) {
-        warnings.push(`HIGH TILE COUNT (${totalTiles.toLocaleString()}) - May cause slowdown`);
-      } else if (totalTiles > 60000) {
+      // Check tile count thresholds
+      if (totalTiles > CONFIG.WARNING_TILE_COUNT_EXTREME) {
         warnings.push(`EXTREME TILE COUNT (${totalTiles.toLocaleString()}) - Processing will be very slow`);
+      } else if (totalTiles > CONFIG.WARNING_TILE_COUNT_HIGH) {
+        warnings.push(`HIGH TILE COUNT (${totalTiles.toLocaleString()}) - May cause slowdown`);
       }
       
-      // Check for tiny tiles
-      if (appState.tileSize < 5) {
+      // Check tile size thresholds
+      if (appState.tileSize < CONFIG.WARNING_TILE_SIZE_SMALL) {
         warnings.push(`TILES TOO SMALL (${appState.tileSize}px) - Results may look pixelated`);
-      }
-      
-      // Check for huge tiles
-      if (appState.tileSize > 100) {
+      } else if (appState.tileSize > CONFIG.WARNING_TILE_SIZE_LARGE) {
         warnings.push(`TILES TOO LARGE (${appState.tileSize}px) - Consider higher resolution`);
       }
       
       // Cap maximum resolution
-      if (appState.tilesPerRow > 300) {
-        appState.tilesPerRow = 300;
-        ui.resolution.value = 300;
-        ui.resValue.textContent = '300';
-        warnings.push('RESOLUTION CAPPED AT 300 - Maximum safe limit reached');
+      if (appState.tilesPerRow > CONFIG.MAX_TILES_PER_ROW) {
+        appState.tilesPerRow = CONFIG.MAX_TILES_PER_ROW;
+        ui.resolution.value = CONFIG.MAX_TILES_PER_ROW;
+        warnings.push(`RESOLUTION CAPPED AT ${CONFIG.MAX_TILES_PER_ROW} - Maximum safe limit reached`);
       }
       
-      // Display warnings
+      // Display first warning (if any)
       if (warnings.length > 0) {
         ui.warningText.textContent = warnings[0];
         ui.validationWarning.classList.remove('hidden');
@@ -247,265 +630,97 @@
       
       return warnings.length === 0;
     }
-    
-    function calculateTileSize() {
-      const exactSize = appState.canvasWidth / appState.tilesPerRow;
-      // Snap to whole pixels to avoid tearing
-      const snappedSize = Math.round(exactSize);
-      
-      // Recalculate tiles to fit exactly
-      const actualTilesWide = Math.floor(appState.canvasWidth / snappedSize);
-      const actualTilesHigh = Math.floor(appState.canvasHeight / snappedSize);
-      
-      appState.tileSize = snappedSize;
-      appState.tilesPerRow = actualTilesWide;
-      appState.tilesPerCol = actualTilesHigh;  // NEW: calculate height separately
-      
-      updateDisplays();
-      validateSettings();
-    }
-    
-    function updateDisplays() {
-      // Update tile size display
-      ui.tileSizeDisplay.textContent = `${appState.tileSize} × ${appState.tileSize} px`;
-      
-      // Update total tiles display (now using width × height)
-      const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
-      ui.totalTilesDisplay.textContent = `${totalTiles.toLocaleString()} tiles (${appState.tilesPerRow}×${appState.tilesPerCol})`;
-      
-      // Update resolution value
-      ui.resValue.textContent = appState.tilesPerRow;
-    }
-    
-    function getTileBrightness(x, y, size) {
-      let chunk = appState.sourceImage.get(x, y, size, size);
-      chunk.loadPixels();
-      
-      let total = 0;
-      let count = chunk.pixels.length / 4;
-      
-      for (let i = 0; i < chunk.pixels.length; i += 4) {
-        let r = chunk.pixels[i];
-        let g = chunk.pixels[i + 1];
-        let b = chunk.pixels[i + 2];
-        total += 0.299 * r + 0.587 * g + 0.114 * b;
-      }
-      
-      return total / count;
-    }
-    
-    function placeTile(x, y, brightness) {
-      // Map brightness to column (0-7)
-      let col = floor(map(brightness, 0, 255, 0, appState.tilesetColumns - 0.01));
-      
-      // Random row variation
-      let row = floor(Math.random() * appState.tilesetRows);
-      
-      // Source position in tileset
-      let sx = col * appState.spriteSize;
-      let sy = row * appState.spriteSize;
-      
-      // Draw the tile
-      image(
-        appState.tileset,
-        x, y, appState.tileSize, appState.tileSize,
-        sx, sy, appState.spriteSize, appState.spriteSize
-      );
-    }
-    
-    function processTiles() {
-      if (!appState.isProcessing || appState.isPaused || appState.isComplete) {
-        return;
-      }
-      
-      let tilesProcessed = 0;
-      let startRow = appState.currentRow;
-      let startCol = appState.currentCol;
-      
-      while (tilesProcessed < appState.tilesPerFrame) {
-        // Check if we've completed all rows
-        if (appState.currentRow >= appState.tilesPerCol) {
-          completeProcessing();
-          break;
-        }
-        
-        let x = appState.currentCol * appState.tileSize;
-        let y = appState.currentRow * appState.tileSize;
-        
-        // Ensure we don't go out of bounds
-        if (x >= appState.canvasWidth || y >= appState.canvasHeight) {
-          appState.currentCol = 0;
-          appState.currentRow++;
-          continue;
-        }
-        
-        let brightness = getTileBrightness(x, y, appState.tileSize);
-        placeTile(x, y, brightness);
-        
-        // Move to next tile
-        appState.currentCol++;
-        if (appState.currentCol >= appState.tilesPerRow) {
-          appState.currentCol = 0;
-          appState.currentRow++;
-        }
-        
-        tilesProcessed++;
-      }
-      
-      // Debug first call only
-      if (startRow === 0 && startCol === 0) {
-        console.log(`First processTiles() call: started at [${startRow},${startCol}], processed ${tilesProcessed} tiles, now at [${appState.currentRow},${appState.currentCol}]`);
-      }
-      
-      // Update status
-      let totalTiles = appState.tilesPerRow * appState.tilesPerCol;
-      let currentTile = appState.currentRow * appState.tilesPerRow + appState.currentCol;
-      let percent = Math.min(100, ((currentTile / totalTiles) * 100)).toFixed(1);
-      ui.statusText.textContent = `PROCESSING: ${percent}%`;
-    }
 
-    // ===========================
-    // UI HANDLERS
-    // ===========================
+    // ============================================================================
+    // FILE HANDLING
+    // ============================================================================
     
-    function startProcessing() {
-      if (!appState.sourceImage || !appState.tileset) {
-        ui.statusText.textContent = 'ERROR: LOAD IMAGE & TILESET';
-        return;
-      }
+    /**
+     * Handles source image upload
+     * @param {File} file - Uploaded image file
+     */
+    function handleImageUpload(file) {
+      if (!file) return;
       
-      // Validate before starting
-      if (!validateSettings()) {
-        // Still allow processing, but user has been warned
-      }
-      
-      // CRITICAL: Reset state completely
-      appState.currentRow = 0;
-      appState.currentCol = 0;
-      appState.isComplete = false;
-      appState.isPaused = false;
-      
-      // Recalculate tile size FIRST
-      calculateTileSize();
-      
-      // Update canvas size AFTER calculations
-      resizeCanvas(appState.canvasWidth, appState.canvasHeight);
-      background(255);
-      
-      console.log(`Starting: ${appState.tilesPerRow}×${appState.tilesPerCol} tiles, size: ${appState.tileSize}px`);
-      console.log(`Initial position: row=${appState.currentRow}, col=${appState.currentCol}`);
-      
-      // Set processing flag LAST, right before loop
-      appState.isProcessing = true;
-      
-      // Update UI
-      ui.startBtn.disabled = true;
-      ui.pauseBtn.disabled = false;
-      ui.resumeBtn.disabled = true;
-      ui.downloadBtn.disabled = true;
-      ui.statusText.textContent = 'PROCESSING: 0%';
-      
-      loop();
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        loadImage(event.target.result, (img) => {
+          appState.sourceImage = img;
+          setCanvasSizeFromImage(img);
+          calculateTileLayout();
+          setStatus('IMAGE LOADED - READY TO START', ProcessingState.READY);
+          updateButtonStates();
+        });
+      };
+      reader.readAsDataURL(file);
     }
     
-    function pauseProcessing() {
-      appState.isPaused = true;
-      ui.pauseBtn.disabled = true;
-      ui.resumeBtn.disabled = false;
-      ui.statusText.textContent = 'PAUSED';
-    }
-    
-    function resumeProcessing() {
-      appState.isPaused = false;
-      ui.pauseBtn.disabled = false;
-      ui.resumeBtn.disabled = true;
-      loop();
-    }
-    
-    function completeProcessing() {
-      appState.isComplete = true;
-      appState.isProcessing = false;
-      ui.startBtn.disabled = false;
-      ui.pauseBtn.disabled = true;
-      ui.resumeBtn.disabled = true;
-      ui.downloadBtn.disabled = false;
-      ui.statusText.textContent = 'COMPLETE';
-      noLoop();
-    }
-    
-    function downloadImage() {
-      let timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
-      let filename = `weaver-${appState.tilesPerRow}x-${timestamp}`;
+    /**
+     * Downloads completed canvas as PNG
+     */
+    function downloadCanvas() {
+      const timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
+      const filename = `weaver-${appState.tilesPerRow}x-${timestamp}`;
       saveCanvas(filename, 'png');
     }
 
-    // ===========================
+    // ============================================================================
     // EVENT LISTENERS
-    // ===========================
+    // ============================================================================
     
-    ui.resolution.addEventListener('input', (e) => {
-      appState.tilesPerRow = parseInt(e.target.value);
-      ui.resValue.textContent = e.target.value;
-      calculateTileSize();
-    });
-    
-    ui.imageUpload.addEventListener('change', (e) => {
-      let file = e.target.files[0];
-      if (file) {
-        let reader = new FileReader();
-        reader.onload = (event) => {
-          loadImage(event.target.result, (img) => {
-            appState.sourceImage = img;
-            
-            // Auto-set canvas size from image
-            setCanvasSizeFromImage(img);
-            
-            // Recalculate with new dimensions
-            calculateTileSize();
-            
-            ui.statusText.textContent = 'IMAGE LOADED - READY TO START';
-          });
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-    
-    ui.startBtn.addEventListener('click', startProcessing);
-    ui.pauseBtn.addEventListener('click', pauseProcessing);
-    ui.resumeBtn.addEventListener('click', resumeProcessing);
-    ui.downloadBtn.addEventListener('click', downloadImage);
+    function setupEventListeners() {
+      // Resolution slider
+      ui.resolution.addEventListener('input', (e) => {
+        appState.tilesPerRow = parseInt(e.target.value);
+        calculateTileLayout();
+      });
+      
+      // Image upload
+      ui.imageUpload.addEventListener('change', (e) => {
+        handleImageUpload(e.target.files[0]);
+      });
+      
+      // Control buttons
+      ui.startBtn.addEventListener('click', startProcessing);
+      ui.pauseBtn.addEventListener('click', pauseProcessing);
+      ui.resumeBtn.addEventListener('click', resumeProcessing);
+      ui.downloadBtn.addEventListener('click', downloadCanvas);
+    }
 
-    // ===========================
+    // ============================================================================
     // P5.JS LIFECYCLE
-    // ===========================
+    // ============================================================================
     
     function preload() {
-      // Load your actual tileset here
+      // Load tileset spritesheet
       appState.tileset = loadImage('tiles/tileset.png');
     }
     
     function setup() {
-      // Create initial canvas at default size
-      let canvas = createCanvas(appState.canvasWidth, appState.canvasHeight);
+      // Create canvas
+      const canvas = createCanvas(appState.canvasWidth, appState.canvasHeight);
       canvas.parent('canvasContainer');
       pixelDensity(1);
-      
-      frameRate(60);
+      frameRate(CONFIG.TARGET_FRAMERATE);
       noLoop();
       
       // Calculate tileset dimensions
-      appState.tilesetRows = appState.tileset.height / appState.spriteSize;
+      appState.tilesetRows = appState.tileset.height / CONFIG.SPRITE_SIZE;
       
-      // Initial calculations
-      calculateTileSize();
+      // Initialize UI
+      calculateTileLayout();
+      setupEventListeners();
+      updateButtonStates();
       
-      ui.statusText.textContent = 'READY - LOAD SOURCE IMAGE';
+      setStatus('READY - LOAD SOURCE IMAGE', ProcessingState.IDLE);
+      
+      console.log(`Weaver v0.4 initialized - Tileset: ${CONFIG.TILESET_COLUMNS}×${appState.tilesetRows}`);
     }
     
     function draw() {
-      // Only process if we're actively processing
-      if (appState.isProcessing && !appState.isPaused && !appState.isComplete) {
-        processTiles();
+      // Process tiles if in processing state
+      if (isProcessing()) {
+        processTileBatch();
       }
     }
   </script>
