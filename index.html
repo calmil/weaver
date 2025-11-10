@@ -6,6 +6,8 @@
   <title>Weaver v0.4</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
   <style>
     body { font-family: 'Courier New', monospace; }
     input[type="number"], input[type="range"] {
@@ -56,7 +58,7 @@
     </div>
     
     <!-- Image Mode Controls -->
-    <div id="imageControls" class="space-y-6 mb-8">
+    <div id="imageControls" class="space-y-6 mb-8" style="display: block;">
       
       <!-- Canvas Size (Auto) -->
       <div class="flex items-center gap-4">
@@ -110,6 +112,67 @@
         <button id="pauseBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>PAUSE</button>
         <button id="resumeBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>RESUME</button>
         <button id="downloadBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>DOWNLOAD</button>
+      </div>
+      
+    </div>
+    
+    <!-- Video Mode Controls -->
+    <div id="videoControls" class="space-y-6 mb-8" style="display: none;">
+      
+      <!-- Video Upload -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">SOURCE VIDEO</label>
+        <input type="file" id="videoUpload" accept="video/*,.gif" class="text-sm text-gray-400">
+      </div>
+      
+      <!-- Video Info Display -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">VIDEO INFO</label>
+        <span id="videoInfoDisplay" class="text-sm text-gray-500">No video loaded</span>
+      </div>
+      
+      <!-- Frame Count Display -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TOTAL FRAMES</label>
+        <span id="frameCountDisplay" class="text-sm text-gray-500">0</span>
+      </div>
+      
+      <!-- Framerate Control -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TARGET FPS</label>
+        <input type="number" id="targetFPS" min="1" max="60" value="30" step="1">
+        <span class="text-xs text-gray-600">frames per second</span>
+      </div>
+      
+      <!-- Resolution Control (for video) -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">TILE RESOLUTION</label>
+        <input type="range" id="videoResolution" min="10" max="200" value="50" step="1">
+        <span id="videoResValue" class="w-12 text-right">50</span>
+        <span class="text-xs text-gray-600">tiles wide</span>
+      </div>
+      
+      <!-- Export Format -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">EXPORT FORMAT</label>
+        <select id="exportFormat" class="bg-[#1a1a1a] border border-[#333] text-[#f5f5f5] px-4 py-2">
+          <option value="zip">PNG Sequence (ZIP)</option>
+          <option value="gif">Animated GIF</option>
+        </select>
+      </div>
+      
+      <!-- Video Status -->
+      <div class="flex items-center gap-4">
+        <label class="w-40 text-sm tracking-wide text-gray-400">STATUS</label>
+        <span id="videoStatusText" class="text-sm text-gray-500">READY</span>
+      </div>
+      
+      <!-- Video Action Buttons -->
+      <div class="flex gap-2 mt-8 pt-4 border-t border-gray-800">
+        <button id="videoStartBtn" class="px-8 py-3 bg-[#f5f5f5] text-[#0a0a0a]">START</button>
+        <button id="videoPauseBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>PAUSE</button>
+        <button id="videoResumeBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>RESUME</button>
+        <button id="videoDownloadBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>EXPORT</button>
       </div>
       
     </div>
@@ -194,20 +257,77 @@
       // Performance tracking
       tilesPerFrame: CONFIG.TILES_PER_FRAME
     };
+    
+    // ============================================================================
+    // VIDEO STATE
+    // ============================================================================
+    
+    const videoState = {
+      // Source video
+      sourceVideo: null,          // HTML5 video element
+      videoFile: null,            // File object
+      videoObjectURL: null,       // Blob URL for video
+      
+      // Video metadata
+      duration: 0,                // Duration in seconds
+      width: 0,                   // Video width
+      height: 0,                  // Video height
+      
+      // Frame extraction
+      targetFramerate: 30,        // Target FPS for output
+      totalFrames: 0,             // Calculated total frames
+      extractedFrames: [],        // Array of ImageData objects
+      
+      // Processing
+      currentFrameIndex: 0,       // Current frame being processed
+      processedFrames: [],        // Array of processed p5.Graphics buffers
+      
+      // State
+      isExtracting: false,        // Currently extracting frames from video
+      isProcessing: false,        // Currently processing frames
+      isPaused: false,            // Processing paused
+      isComplete: false,          // Processing complete
+      
+      // Export
+      exportFormat: 'zip',        // 'zip' or 'gif'
+      
+      // Resolution (simple mode - no keyframes yet)
+      tilesPerRow: 50             // Fixed resolution for all frames
+    };
 
     // ============================================================================
     // UI ELEMENT REFERENCES
     // ============================================================================
     
     const ui = {
-      // Displays
+      // Mode tabs
+      imageMode: document.getElementById('imageMode'),
+      videoMode: document.getElementById('videoMode'),
+      imageControls: document.getElementById('imageControls'),
+      videoControls: document.getElementById('videoControls'),
+      
+      // Image mode displays
       canvasSizeDisplay: document.getElementById('canvasSizeDisplay'),
       tileSizeDisplay: document.getElementById('tileSizeDisplay'),
       totalTilesDisplay: document.getElementById('totalTilesDisplay'),
       statusText: document.getElementById('statusText'),
       resValue: document.getElementById('resValue'),
       
-      // Inputs
+      // Video mode elements
+      videoUpload: document.getElementById('videoUpload'),
+      videoInfoDisplay: document.getElementById('videoInfoDisplay'),
+      frameCountDisplay: document.getElementById('frameCountDisplay'),
+      targetFPS: document.getElementById('targetFPS'),
+      videoResolution: document.getElementById('videoResolution'),
+      videoResValue: document.getElementById('videoResValue'),
+      exportFormat: document.getElementById('exportFormat'),
+      videoStatusText: document.getElementById('videoStatusText'),
+      videoStartBtn: document.getElementById('videoStartBtn'),
+      videoPauseBtn: document.getElementById('videoPauseBtn'),
+      videoResumeBtn: document.getElementById('videoResumeBtn'),
+      videoDownloadBtn: document.getElementById('videoDownloadBtn'),
+      
+      // Image mode inputs
       resolution: document.getElementById('resolution'),
       imageUpload: document.getElementById('imageUpload'),
       
@@ -665,10 +785,180 @@
     }
 
     // ============================================================================
+    // VIDEO PROCESSING - Frame Extraction
+    // ============================================================================
+    
+    /**
+     * Loads video file and extracts metadata
+     * @param {File} file - Video or GIF file
+     * @returns {Promise<HTMLVideoElement>}
+     */
+    function loadVideoFile(file) {
+      return new Promise((resolve, reject) => {
+        // Clean up previous video if exists
+        if (videoState.videoObjectURL) {
+          URL.revokeObjectURL(videoState.videoObjectURL);
+        }
+        
+        // Create video element
+        const video = document.createElement('video');
+        videoState.videoObjectURL = URL.createObjectURL(file);
+        
+        video.src = videoState.videoObjectURL;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        
+        video.addEventListener('loadedmetadata', () => {
+          // Store video metadata
+          videoState.sourceVideo = video;
+          videoState.videoFile = file;
+          videoState.duration = video.duration;
+          videoState.width = video.videoWidth;
+          videoState.height = video.videoHeight;
+          videoState.totalFrames = Math.floor(video.duration * videoState.targetFramerate);
+          
+          // Update UI
+          ui.videoInfoDisplay.textContent = 
+            `${video.videoWidth}×${video.videoHeight} | ${video.duration.toFixed(1)}s`;
+          ui.frameCountDisplay.textContent = `${videoState.totalFrames} frames`;
+          
+          console.log(`Video loaded: ${video.videoWidth}×${video.videoHeight}, ${video.duration}s, ${videoState.totalFrames} frames`);
+          
+          resolve(video);
+        });
+        
+        video.addEventListener('error', (e) => {
+          reject(new Error('Failed to load video'));
+        });
+        
+        video.load();
+      });
+    }
+    
+    /**
+     * Extracts all frames from video as ImageData objects
+     * @returns {Promise<Array<ImageData>>}
+     */
+    async function extractAllFrames() {
+      if (!videoState.sourceVideo) {
+        throw new Error('No video loaded');
+      }
+      
+      videoState.isExtracting = true;
+      videoState.extractedFrames = [];
+      
+      const video = videoState.sourceVideo;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      ui.videoStatusText.textContent = 'EXTRACTING FRAMES...';
+      
+      // Extract frames sequentially
+      for (let frameIndex = 0; frameIndex < videoState.totalFrames; frameIndex++) {
+        const timeInSeconds = frameIndex / videoState.targetFramerate;
+        
+        // Seek to frame time
+        await seekToTime(video, timeInSeconds);
+        
+        // Draw frame to canvas
+        ctx.drawImage(video, 0, 0);
+        
+        // Extract as ImageData
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        videoState.extractedFrames.push(imageData);
+        
+        // Update progress
+        const percent = ((frameIndex + 1) / videoState.totalFrames * 100).toFixed(1);
+        ui.videoStatusText.textContent = `EXTRACTING: ${percent}% (${frameIndex + 1}/${videoState.totalFrames})`;
+        
+        // Allow UI to breathe every 10 frames
+        if (frameIndex % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      
+      videoState.isExtracting = false;
+      ui.videoStatusText.textContent = `EXTRACTION COMPLETE - ${videoState.totalFrames} FRAMES READY`;
+      
+      console.log(`Extracted ${videoState.extractedFrames.length} frames`);
+      
+      return videoState.extractedFrames;
+    }
+    
+    /**
+     * Helper: Seeks video to specific time
+     * @param {HTMLVideoElement} video
+     * @param {number} timeInSeconds
+     * @returns {Promise<void>}
+     */
+    function seekToTime(video, timeInSeconds) {
+      return new Promise((resolve) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        
+        video.addEventListener('seeked', onSeeked);
+        video.currentTime = timeInSeconds;
+      });
+    }
+
+    // ============================================================================
+    // MODE MANAGEMENT
+    // ============================================================================
+    
+    /**
+     * Switches between image and video modes
+     * @param {string} mode - 'image' or 'video'
+     */
+    function switchMode(mode) {
+      appState.mode = mode;
+      
+      if (mode === 'image') {
+        // Show image controls, hide video controls
+        ui.imageControls.style.display = 'block';
+        ui.videoControls.style.display = 'none';
+        
+        // Update tab styling
+        ui.imageMode.classList.add('active-tab');
+        ui.imageMode.classList.remove('bg-[#1a1a1a]', 'text-[#666]');
+        ui.imageMode.classList.add('bg-[#f5f5f5]', 'text-[#0a0a0a]');
+        
+        ui.videoMode.classList.remove('active-tab');
+        ui.videoMode.classList.remove('bg-[#f5f5f5]', 'text-[#0a0a0a]');
+        ui.videoMode.classList.add('bg-[#1a1a1a]', 'text-[#666]');
+        
+      } else {
+        // Show video controls, hide image controls
+        ui.imageControls.style.display = 'none';
+        ui.videoControls.style.display = 'block';
+        
+        // Update tab styling
+        ui.videoMode.classList.add('active-tab');
+        ui.videoMode.classList.remove('bg-[#1a1a1a]', 'text-[#666]');
+        ui.videoMode.classList.add('bg-[#f5f5f5]', 'text-[#0a0a0a]');
+        
+        ui.imageMode.classList.remove('active-tab');
+        ui.imageMode.classList.remove('bg-[#f5f5f5]', 'text-[#0a0a0a]');
+        ui.imageMode.classList.add('bg-[#1a1a1a]', 'text-[#666]');
+      }
+      
+      console.log(`Switched to ${mode} mode`);
+    }
+
+    // ============================================================================
     // EVENT LISTENERS
     // ============================================================================
     
     function setupEventListeners() {
+      // Mode switching
+      ui.imageMode.addEventListener('click', () => switchMode('image'));
+      ui.videoMode.addEventListener('click', () => switchMode('video'));
+      
       // Resolution slider
       ui.resolution.addEventListener('input', (e) => {
         appState.tilesPerRow = parseInt(e.target.value);
@@ -680,11 +970,65 @@
         handleImageUpload(e.target.files[0]);
       });
       
+      // Video upload
+      ui.videoUpload.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+          ui.videoStatusText.textContent = 'LOADING VIDEO...';
+          await loadVideoFile(file);
+          ui.videoStatusText.textContent = 'VIDEO LOADED - READY TO START';
+          ui.videoStartBtn.disabled = false;
+        } catch (error) {
+          console.error('Video load error:', error);
+          ui.videoStatusText.textContent = 'ERROR: FAILED TO LOAD VIDEO';
+        }
+      });
+      
+      // Video resolution slider
+      ui.videoResolution.addEventListener('input', (e) => {
+        videoState.tilesPerRow = parseInt(e.target.value);
+        ui.videoResValue.textContent = e.target.value;
+      });
+      
+      // Target FPS input
+      ui.targetFPS.addEventListener('change', (e) => {
+        const fps = parseInt(e.target.value);
+        if (fps >= 1 && fps <= 60) {
+          videoState.targetFramerate = fps;
+          // Recalculate total frames if video is loaded
+          if (videoState.sourceVideo) {
+            videoState.totalFrames = Math.floor(videoState.duration * fps);
+            ui.frameCountDisplay.textContent = `${videoState.totalFrames} frames`;
+          }
+        }
+      });
+      
+      // Export format selector
+      ui.exportFormat.addEventListener('change', (e) => {
+        videoState.exportFormat = e.target.value;
+      });
+      
       // Control buttons
       ui.startBtn.addEventListener('click', startProcessing);
       ui.pauseBtn.addEventListener('click', pauseProcessing);
       ui.resumeBtn.addEventListener('click', resumeProcessing);
       ui.downloadBtn.addEventListener('click', downloadCanvas);
+      
+      // Video control buttons
+      ui.videoStartBtn.addEventListener('click', startVideoProcessing);
+      ui.videoPauseBtn.addEventListener('click', () => {
+        videoState.isPaused = true;
+        ui.videoPauseBtn.disabled = true;
+        ui.videoResumeBtn.disabled = false;
+      });
+      ui.videoResumeBtn.addEventListener('click', () => {
+        videoState.isPaused = false;
+        ui.videoPauseBtn.disabled = false;
+        ui.videoResumeBtn.disabled = true;
+      });
+      ui.videoDownloadBtn.addEventListener('click', exportVideo);
     }
 
     // ============================================================================
