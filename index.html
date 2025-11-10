@@ -638,6 +638,348 @@
     }
 
     // ============================================================================
+    // VIDEO STATE MANAGEMENT & PROCESSING
+    // ============================================================================
+    
+    /**
+     * Converts ImageData to p5.Image
+     * @param {ImageData} imageData
+     * @returns {p5.Image}
+     */
+    function imageDataToP5Image(imageData) {
+      const img = createImage(imageData.width, imageData.height);
+      img.loadPixels();
+      
+      // Copy pixel data
+      for (let i = 0; i < imageData.data.length; i++) {
+        img.pixels[i] = imageData.data[i];
+      }
+      
+      img.updatePixels();
+      return img;
+    }
+    
+    /**
+     * Calculates brightness from a p5.Image region
+     * @param {p5.Image} img - Source image
+     * @param {number} x - Left edge
+     * @param {number} y - Top edge
+     * @param {number} size - Region size
+     * @returns {number} - Average brightness (0-255)
+     */
+    function calculateBrightnessFromImage(img, x, y, size) {
+      const region = img.get(x, y, size, size);
+      region.loadPixels();
+      
+      const { LUMINANCE_R, LUMINANCE_G, LUMINANCE_B } = CONFIG;
+      const pixelCount = region.pixels.length / 4;
+      let totalBrightness = 0;
+      
+      for (let i = 0; i < region.pixels.length; i += 4) {
+        const r = region.pixels[i];
+        const g = region.pixels[i + 1];
+        const b = region.pixels[i + 2];
+        totalBrightness += LUMINANCE_R * r + LUMINANCE_G * g + LUMINANCE_B * b;
+      }
+      
+      return totalBrightness / pixelCount;
+    }
+    
+    /**
+     * Renders a tile to a graphics buffer
+     * @param {p5.Graphics} buffer - Target buffer
+     * @param {number} x - X position
+     * @param {number} y - Y position
+     * @param {number} brightness - Brightness value
+     * @param {number} size - Tile size
+     */
+    function renderTileToBuffer(buffer, x, y, brightness, size) {
+      const column = brightnessToColumn(brightness);
+      const row = selectRandomTileRow();
+      
+      const sourceX = column * CONFIG.SPRITE_SIZE;
+      const sourceY = row * CONFIG.SPRITE_SIZE;
+      
+      buffer.image(
+        appState.tileset,
+        x, y, size, size,
+        sourceX, sourceY, CONFIG.SPRITE_SIZE, CONFIG.SPRITE_SIZE
+      );
+    }
+    
+    /**
+     * Processes a single video frame into a photomosaic
+     * @param {ImageData} frameData - Frame image data
+     * @param {number} frameIndex - Frame number
+     * @returns {p5.Graphics} - Processed frame buffer
+     */
+    function processVideoFrame(frameData, frameIndex) {
+      // Convert to p5.Image
+      const frameImage = imageDataToP5Image(frameData);
+      
+      // Calculate tile layout
+      const tileSize = Math.round(frameData.width / videoState.tilesPerRow);
+      const tilesWide = Math.floor(frameData.width / tileSize);
+      const tilesHigh = Math.floor(frameData.height / tileSize);
+      
+      // Create offscreen buffer for this frame
+      const buffer = createGraphics(frameData.width, frameData.height);
+      buffer.pixelDensity(1);
+      
+      // Fill with white background to prevent transparency overlap
+      buffer.background(255);
+      
+      // Process all tiles in this frame
+      for (let row = 0; row < tilesHigh; row++) {
+        for (let col = 0; col < tilesWide; col++) {
+          const x = col * tileSize;
+          const y = row * tileSize;
+          
+          // Calculate brightness
+          const brightness = calculateBrightnessFromImage(frameImage, x, y, tileSize);
+          
+          // Render tile to buffer
+          renderTileToBuffer(buffer, x, y, brightness, tileSize);
+        }
+      }
+      
+      return buffer;
+    }
+    
+    /**
+     * Processes all extracted frames into photomosaics
+     * Updates UI with progress
+     */
+    async function processAllFrames() {
+      if (videoState.extractedFrames.length === 0) {
+        throw new Error('No frames to process');
+      }
+      
+      videoState.isProcessing = true;
+      videoState.currentFrameIndex = 0;
+      videoState.processedFrames = [];
+      
+      ui.videoStatusText.textContent = 'PROCESSING FRAMES...';
+      ui.videoPauseBtn.disabled = false;
+      
+      const totalFrames = videoState.extractedFrames.length;
+      
+      for (let i = 0; i < totalFrames; i++) {
+        // Check for pause
+        while (videoState.isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        const frameData = videoState.extractedFrames[i];
+        
+        // Process frame
+        const processedFrame = processVideoFrame(frameData, i);
+        videoState.processedFrames.push(processedFrame);
+        
+        videoState.currentFrameIndex = i + 1;
+        
+        // Update progress
+        const percent = ((i + 1) / totalFrames * 100).toFixed(1);
+        ui.videoStatusText.textContent = `PROCESSING: ${percent}% (${i + 1}/${totalFrames})`;
+        
+        // Show preview on canvas every frame (clear first to avoid overlap)
+        background(255);
+        image(processedFrame, 0, 0);
+        
+        // Allow UI to breathe
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      
+      videoState.isProcessing = false;
+      videoState.isComplete = true;
+      
+      ui.videoStatusText.textContent = `PROCESSING COMPLETE - ${totalFrames} FRAMES READY`;
+      ui.videoPauseBtn.disabled = true;
+      ui.videoResumeBtn.disabled = true;
+      ui.videoDownloadBtn.disabled = false;
+      
+      // Show final frame
+      image(videoState.processedFrames[totalFrames - 1], 0, 0);
+      
+      console.log(`Processed ${totalFrames} frames successfully`);
+    }
+    
+    /**
+     * Starts video processing workflow
+     */
+    async function startVideoProcessing() {
+      console.log('startVideoProcessing called');
+      console.log('videoState.sourceVideo:', videoState.sourceVideo);
+      console.log('appState.tileset:', appState.tileset);
+      
+      if (!videoState.sourceVideo) {
+        ui.videoStatusText.textContent = 'ERROR: NO VIDEO LOADED';
+        return;
+      }
+      
+      if (!appState.tileset) {
+        ui.videoStatusText.textContent = 'ERROR: TILESET NOT LOADED';
+        return;
+      }
+      
+      try {
+        // Disable start button
+        ui.videoStartBtn.disabled = true;
+        
+        // Resize canvas to match video dimensions
+        resizeCanvas(videoState.width, videoState.height);
+        background(255);
+        
+        // Step 1: Extract frames
+        await extractAllFrames();
+        
+        // Step 2: Process frames into photomosaics
+        await processAllFrames();
+        
+        console.log('Video processing workflow complete!');
+        
+      } catch (error) {
+        console.error('Video processing error:', error);
+        ui.videoStatusText.textContent = `ERROR: ${error.message}`;
+        ui.videoStartBtn.disabled = false;
+      }
+    }
+    
+    /**
+     * Exports processed video as ZIP or GIF
+     */
+    async function exportVideo() {
+      console.log('Export video called');
+      
+      if (videoState.processedFrames.length === 0) {
+        ui.videoStatusText.textContent = 'ERROR: NO FRAMES TO EXPORT';
+        return;
+      }
+      
+      ui.videoDownloadBtn.disabled = true;
+      
+      if (videoState.exportFormat === 'zip') {
+        await exportAsZip();
+      } else if (videoState.exportFormat === 'gif') {
+        await exportAsGIF();
+      }
+      
+      ui.videoDownloadBtn.disabled = false;
+    }
+    
+    /**
+     * Exports frames as ZIP of PNG images
+     */
+    async function exportAsZip() {
+      const zip = new JSZip();
+      const frameFolder = zip.folder('frames');
+      
+      ui.videoStatusText.textContent = 'EXPORTING ZIP...';
+      
+      const totalFrames = videoState.processedFrames.length;
+      
+      for (let i = 0; i < totalFrames; i++) {
+        const frame = videoState.processedFrames[i];
+        
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => {
+          frame.canvas.toBlob(resolve, 'image/png');
+        });
+        
+        // Add to zip with zero-padded filename
+        const filename = `frame_${String(i).padStart(5, '0')}.png`;
+        frameFolder.file(filename, blob);
+        
+        // Update progress
+        const percent = ((i + 1) / totalFrames * 100).toFixed(1);
+        ui.videoStatusText.textContent = `EXPORTING: ${percent}% (${i + 1}/${totalFrames})`;
+        
+        // Allow UI to breathe
+        if (i % 5 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      
+      // Generate ZIP file
+      ui.videoStatusText.textContent = 'GENERATING ZIP FILE...';
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+      
+      // Download
+      const timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
+      const filename = `weaver-video-${videoState.processedFrames.length}frames-${timestamp}.zip`;
+      
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      ui.videoStatusText.textContent = `ZIP DOWNLOADED - ${totalFrames} FRAMES`;
+      console.log(`Exported ${totalFrames} frames as ZIP`);
+    }
+    
+    /**
+     * Exports frames as animated GIF
+     */
+    async function exportAsGIF() {
+      ui.videoStatusText.textContent = 'CREATING GIF...';
+      
+      const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: videoState.processedFrames[0].width,
+        height: videoState.processedFrames[0].height,
+        workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+      });
+      
+      const totalFrames = videoState.processedFrames.length;
+      const delay = Math.round(1000 / videoState.targetFramerate);
+      
+      // Add each frame
+      for (let i = 0; i < totalFrames; i++) {
+        gif.addFrame(videoState.processedFrames[i].canvas, { delay: delay, copy: true });
+        
+        const percent = ((i + 1) / totalFrames * 100).toFixed(1);
+        ui.videoStatusText.textContent = `ADDING FRAMES: ${percent}% (${i + 1}/${totalFrames})`;
+        
+        // Allow UI to breathe
+        if (i % 5 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      
+      // Render GIF (this takes a while)
+      ui.videoStatusText.textContent = 'RENDERING GIF (THIS MAY TAKE A WHILE)...';
+      
+      gif.on('progress', (progress) => {
+        const percent = (progress * 100).toFixed(1);
+        ui.videoStatusText.textContent = `RENDERING GIF: ${percent}%`;
+      });
+      
+      gif.on('finished', (blob) => {
+        const timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
+        const filename = `weaver-video-${totalFrames}frames-${timestamp}.gif`;
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        ui.videoStatusText.textContent = `GIF DOWNLOADED - ${totalFrames} FRAMES`;
+        console.log(`Exported ${totalFrames} frames as GIF`);
+      });
+      
+      gif.render();
+    }
+
+    // ============================================================================
     // UI UPDATES
     // ============================================================================
     
@@ -955,6 +1297,10 @@
     // ============================================================================
     
     function setupEventListeners() {
+      console.log('Setting up event listeners...');
+      console.log('startVideoProcessing exists?', typeof startVideoProcessing);
+      console.log('exportVideo exists?', typeof exportVideo);
+      
       // Mode switching
       ui.imageMode.addEventListener('click', () => switchMode('image'));
       ui.videoMode.addEventListener('click', () => switchMode('video'));
@@ -1017,7 +1363,10 @@
       ui.downloadBtn.addEventListener('click', downloadCanvas);
       
       // Video control buttons
-      ui.videoStartBtn.addEventListener('click', startVideoProcessing);
+      ui.videoStartBtn.addEventListener('click', () => {
+        console.log('Video START button clicked');
+        startVideoProcessing();
+      });
       ui.videoPauseBtn.addEventListener('click', () => {
         videoState.isPaused = true;
         ui.videoPauseBtn.disabled = true;
