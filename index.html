@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,15 +10,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
   <style>
-    body { font-family: 'Courier New', monospace; }
-    input[type="number"], input[type="range"] {
+    body {
+      font-family: 'Courier New', monospace;
+    }
+
+    input[type="number"],
+    input[type="range"] {
       background: #1a1a1a;
       border: 1px solid #333;
       color: #f5f5f5;
       padding: 8px 12px;
     }
-    input[type="number"] { width: 100px; }
-    input[type="range"] { flex: 1; }
+
+    input[type="number"] {
+      width: 100px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+    }
+
     button {
       font-family: 'Courier New', monospace;
       font-weight: 600;
@@ -25,47 +37,52 @@
       transition: all 0.15s;
       border: 1px solid transparent;
     }
+
     button:hover:not(:disabled) {
       border-color: #f5f5f5;
     }
+
     button:disabled {
       opacity: 0.3;
       cursor: not-allowed;
     }
+
     .active-tab {
       background: #f5f5f5 !important;
       color: #0a0a0a !important;
     }
+
     #canvasContainer canvas {
       display: block;
       border: 1px solid #333;
     }
   </style>
 </head>
+
 <body class="bg-[#0a0a0a] min-h-screen p-8 text-[#f5f5f5]">
   <div class="max-w-5xl mx-auto">
-    
+
     <!-- Header -->
     <div class="mb-8 border-b border-gray-800 pb-4">
       <h1 class="text-2xl tracking-widest">WEAVER v0.4</h1>
       <p class="text-sm text-gray-600 mt-1">PHOTOMOSAIC PROCESSOR</p>
     </div>
-    
+
     <!-- Mode Tabs -->
     <div class="mb-6 flex gap-2">
       <button id="imageMode" class="px-6 py-2 bg-[#f5f5f5] text-[#0a0a0a] active-tab">IMAGE</button>
       <button id="videoMode" class="px-6 py-2 bg-[#1a1a1a] text-[#666]">VIDEO (COMING SOON)</button>
     </div>
-    
+
     <!-- Image Mode Controls -->
     <div id="imageControls" class="space-y-6 mb-8" style="display: block;">
-      
+
       <!-- Canvas Size (Auto) -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">CANVAS SIZE</label>
         <span id="canvasSizeDisplay" class="text-sm text-gray-500">Auto-set from image</span>
       </div>
-      
+
       <!-- Resolution Slider -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TILE RESOLUTION</label>
@@ -73,19 +90,19 @@
         <span id="resValue" class="w-12 text-right">20</span>
         <span class="text-xs text-gray-600">tiles wide</span>
       </div>
-      
+
       <!-- Tile Size Display -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TILE SIZE</label>
         <span id="tileSizeDisplay" class="text-sm text-gray-500">50.0 × 50.0 px</span>
       </div>
-      
+
       <!-- Total Tiles Display -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TOTAL TILES</label>
         <span id="totalTilesDisplay" class="text-sm text-gray-500">400 tiles</span>
       </div>
-      
+
       <!-- Validation Warning -->
       <div id="validationWarning" class="hidden">
         <div class="flex items-center gap-4 bg-yellow-900/20 border border-yellow-700/50 p-3 rounded">
@@ -93,19 +110,19 @@
           <span id="warningText" class="text-sm text-yellow-400"></span>
         </div>
       </div>
-      
+
       <!-- Image Upload -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">SOURCE IMAGE</label>
         <input type="file" id="imageUpload" accept="image/*" class="text-sm text-gray-400">
       </div>
-      
+
       <!-- Status -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">STATUS</label>
         <span id="statusText" class="text-sm text-gray-500">READY</span>
       </div>
-      
+
       <!-- Action Buttons -->
       <div class="flex gap-2 mt-8 pt-4 border-t border-gray-800">
         <button id="startBtn" class="px-8 py-3 bg-[#f5f5f5] text-[#0a0a0a]">START</button>
@@ -113,37 +130,37 @@
         <button id="resumeBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>RESUME</button>
         <button id="downloadBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>DOWNLOAD</button>
       </div>
-      
+
     </div>
-    
+
     <!-- Video Mode Controls -->
     <div id="videoControls" class="space-y-6 mb-8" style="display: none;">
-      
+
       <!-- Video Upload -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">SOURCE VIDEO</label>
         <input type="file" id="videoUpload" accept="video/*,.gif" class="text-sm text-gray-400">
       </div>
-      
+
       <!-- Video Info Display -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">VIDEO INFO</label>
         <span id="videoInfoDisplay" class="text-sm text-gray-500">No video loaded</span>
       </div>
-      
+
       <!-- Frame Count Display -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TOTAL FRAMES</label>
         <span id="frameCountDisplay" class="text-sm text-gray-500">0</span>
       </div>
-      
+
       <!-- Framerate Control -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TARGET FPS</label>
         <input type="number" id="targetFPS" min="1" max="60" value="30" step="1">
         <span class="text-xs text-gray-600">frames per second</span>
       </div>
-      
+
       <!-- Resolution Control (for video) -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">TILE RESOLUTION</label>
@@ -151,7 +168,7 @@
         <span id="videoResValue" class="w-12 text-right">50</span>
         <span class="text-xs text-gray-600">tiles wide</span>
       </div>
-      
+
       <!-- Export Format -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">EXPORT FORMAT</label>
@@ -160,13 +177,13 @@
           <option value="gif">Animated GIF</option>
         </select>
       </div>
-      
+
       <!-- Video Status -->
       <div class="flex items-center gap-4">
         <label class="w-40 text-sm tracking-wide text-gray-400">STATUS</label>
         <span id="videoStatusText" class="text-sm text-gray-500">READY</span>
       </div>
-      
+
       <!-- Video Action Buttons -->
       <div class="flex gap-2 mt-8 pt-4 border-t border-gray-800">
         <button id="videoStartBtn" class="px-8 py-3 bg-[#f5f5f5] text-[#0a0a0a]">START</button>
@@ -174,49 +191,49 @@
         <button id="videoResumeBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>RESUME</button>
         <button id="videoDownloadBtn" class="px-8 py-3 bg-[#1a1a1a] text-[#666]" disabled>EXPORT</button>
       </div>
-      
+
     </div>
-    
+
     <!-- Canvas Container -->
     <div id="canvasContainer" class="mt-8"></div>
-    
+
   </div>
 
   <script>
     // ============================================================================
     // CONSTANTS & CONFIGURATION
     // ============================================================================
-    
+
     const CONFIG = {
       // Canvas constraints
       CANVAS_MIN_SIZE: 400,
       CANVAS_MAX_SIZE: 2000,
-      
+
       // Resolution limits
       MIN_TILES_PER_ROW: 10,
       MAX_TILES_PER_ROW: 300,
       DEFAULT_TILES_PER_ROW: 20,
-      
+
       // Tileset structure
       TILESET_COLUMNS: 8,        // 8 brightness levels (0-7, dark to bright)
       SPRITE_SIZE: 50,            // Each tile in tileset is 50x50px
-      
+
       // Performance
       TILES_PER_FRAME: 100,       // Process 100 tiles per frame for speed
       TARGET_FRAMERATE: 60,
-      
+
       // Validation thresholds
       WARNING_TILE_COUNT_HIGH: 40000,
       WARNING_TILE_COUNT_EXTREME: 60000,
       WARNING_TILE_SIZE_SMALL: 5,
       WARNING_TILE_SIZE_LARGE: 100,
-      
+
       // Brightness calculation weights (ITU-R BT.601 luminance)
       LUMINANCE_R: 0.299,
       LUMINANCE_G: 0.587,
       LUMINANCE_B: 0.114
     };
-    
+
     // Processing states
     const ProcessingState = {
       IDLE: 'idle',
@@ -230,67 +247,67 @@
     // ============================================================================
     // APPLICATION STATE
     // ============================================================================
-    
+
     const appState = {
       // Current mode
       mode: 'image',
-      
+
       // Canvas dimensions (calculated from source image)
       canvasWidth: 1000,
       canvasHeight: 1000,
-      
+
       // Tile grid layout
       tilesPerRow: CONFIG.DEFAULT_TILES_PER_ROW,
       tilesPerCol: CONFIG.DEFAULT_TILES_PER_ROW,
       tileSize: 50,
-      
+
       // Processing state
       state: ProcessingState.IDLE,
       currentRow: 0,
       currentCol: 0,
-      
+
       // Loaded assets
       sourceImage: null,
       tileset: null,
       tilesetRows: 0,  // Calculated after tileset loads
-      
+
       // Performance tracking
       tilesPerFrame: CONFIG.TILES_PER_FRAME
     };
-    
+
     // ============================================================================
     // VIDEO STATE
     // ============================================================================
-    
+
     const videoState = {
       // Source video
       sourceVideo: null,          // HTML5 video element
       videoFile: null,            // File object
       videoObjectURL: null,       // Blob URL for video
-      
+
       // Video metadata
       duration: 0,                // Duration in seconds
       width: 0,                   // Video width
       height: 0,                  // Video height
-      
+
       // Frame extraction
       targetFramerate: 30,        // Target FPS for output
       totalFrames: 0,             // Calculated total frames
       extractedFrames: [],        // Array of ImageData objects
-      
+
       // Processing
       currentFrameIndex: 0,       // Current frame being processed
       processedFrames: [],        // Array of processed p5.Graphics buffers
-      
+
       // State
       isExtracting: false,        // Currently extracting frames from video
       isProcessing: false,        // Currently processing frames
       isPaused: false,            // Processing paused
       isComplete: false,          // Processing complete
-      
+
       // Export
       exportFormat: 'zip',        // 'zip' or 'gif'
-      
+
       // Resolution (simple mode - no keyframes yet)
       tilesPerRow: 50             // Fixed resolution for all frames
     };
@@ -298,21 +315,21 @@
     // ============================================================================
     // UI ELEMENT REFERENCES
     // ============================================================================
-    
+
     const ui = {
       // Mode tabs
       imageMode: document.getElementById('imageMode'),
       videoMode: document.getElementById('videoMode'),
       imageControls: document.getElementById('imageControls'),
       videoControls: document.getElementById('videoControls'),
-      
+
       // Image mode displays
       canvasSizeDisplay: document.getElementById('canvasSizeDisplay'),
       tileSizeDisplay: document.getElementById('tileSizeDisplay'),
       totalTilesDisplay: document.getElementById('totalTilesDisplay'),
       statusText: document.getElementById('statusText'),
       resValue: document.getElementById('resValue'),
-      
+
       // Video mode elements
       videoUpload: document.getElementById('videoUpload'),
       videoInfoDisplay: document.getElementById('videoInfoDisplay'),
@@ -326,15 +343,15 @@
       videoPauseBtn: document.getElementById('videoPauseBtn'),
       videoResumeBtn: document.getElementById('videoResumeBtn'),
       videoDownloadBtn: document.getElementById('videoDownloadBtn'),
-      
+
       // Image mode inputs
       resolution: document.getElementById('resolution'),
       imageUpload: document.getElementById('imageUpload'),
-      
+
       // Warnings
       validationWarning: document.getElementById('validationWarning'),
       warningText: document.getElementById('warningText'),
-      
+
       // Buttons
       startBtn: document.getElementById('startBtn'),
       pauseBtn: document.getElementById('pauseBtn'),
@@ -345,7 +362,7 @@
     // ============================================================================
     // CANVAS & DIMENSION MANAGEMENT
     // ============================================================================
-    
+
     /**
      * Calculates constrained canvas dimensions from source image
      * Maintains aspect ratio while staying within min/max bounds
@@ -355,26 +372,26 @@
     function calculateCanvasDimensions(img) {
       let width = img.width;
       let height = img.height;
-      
+
       const { CANVAS_MIN_SIZE, CANVAS_MAX_SIZE } = CONFIG;
-      
+
       // Scale down if too large
       if (width > CANVAS_MAX_SIZE || height > CANVAS_MAX_SIZE) {
         const scale = Math.min(CANVAS_MAX_SIZE / width, CANVAS_MAX_SIZE / height);
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
-      
+
       // Scale up if too small
       if (width < CANVAS_MIN_SIZE || height < CANVAS_MIN_SIZE) {
         const scale = Math.max(CANVAS_MIN_SIZE / width, CANVAS_MIN_SIZE / height);
         width = Math.round(width * scale);
         height = Math.round(height * scale);
       }
-      
+
       return { width, height };
     }
-    
+
     /**
      * Updates canvas size based on source image and updates UI
      * @param {p5.Image} img - Source image
@@ -383,10 +400,10 @@
       const dimensions = calculateCanvasDimensions(img);
       appState.canvasWidth = dimensions.width;
       appState.canvasHeight = dimensions.height;
-      
+
       ui.canvasSizeDisplay.textContent = `${dimensions.width} × ${dimensions.height} px`;
     }
-    
+
     /**
      * Calculates optimal tile size and grid layout
      * Snaps to whole pixels to prevent tearing artifacts
@@ -395,19 +412,19 @@
     function calculateTileLayout() {
       // Calculate exact tile size from desired resolution
       const exactSize = appState.canvasWidth / appState.tilesPerRow;
-      
+
       // Snap to whole pixels
       const snappedSize = Math.round(exactSize);
-      
+
       // Recalculate actual tile counts that fit exactly
       const actualTilesWide = Math.floor(appState.canvasWidth / snappedSize);
       const actualTilesHigh = Math.floor(appState.canvasHeight / snappedSize);
-      
+
       // Update state
       appState.tileSize = snappedSize;
       appState.tilesPerRow = actualTilesWide;
       appState.tilesPerCol = actualTilesHigh;
-      
+
       // Update UI displays and validate
       updateAllDisplays();
       validateSettings();
@@ -416,7 +433,7 @@
     // ============================================================================
     // BRIGHTNESS & TILE ANALYSIS
     // ============================================================================
-    
+
     /**
      * Calculates average brightness of an image region using luminance formula
      * @param {number} x - Left edge of region
@@ -427,11 +444,11 @@
     function calculateRegionBrightness(x, y, size) {
       const region = appState.sourceImage.get(x, y, size, size);
       region.loadPixels();
-      
+
       const { LUMINANCE_R, LUMINANCE_G, LUMINANCE_B } = CONFIG;
       const pixelCount = region.pixels.length / 4;
       let totalBrightness = 0;
-      
+
       // Sum brightness using ITU-R BT.601 luminance weights
       for (let i = 0; i < region.pixels.length; i += 4) {
         const r = region.pixels[i];
@@ -439,10 +456,10 @@
         const b = region.pixels[i + 2];
         totalBrightness += LUMINANCE_R * r + LUMINANCE_G * g + LUMINANCE_B * b;
       }
-      
+
       return totalBrightness / pixelCount;
     }
-    
+
     /**
      * Maps brightness value to tileset column (0-7)
      * @param {number} brightness - Brightness value (0-255)
@@ -452,7 +469,7 @@
       // Subtract small epsilon to prevent hitting column 8
       return floor(map(brightness, 0, 255, 0, CONFIG.TILESET_COLUMNS - 0.01));
     }
-    
+
     /**
      * Selects random row for tile variation
      * @returns {number} - Row index
@@ -464,7 +481,7 @@
     // ============================================================================
     // TILE RENDERING
     // ============================================================================
-    
+
     /**
      * Places a single tile on the canvas based on brightness
      * @param {number} x - Canvas x position (pixels)
@@ -474,11 +491,11 @@
     function renderTile(x, y, brightness) {
       const column = brightnessToColumn(brightness);
       const row = selectRandomTileRow();
-      
+
       // Calculate source position in tileset spritesheet
       const sourceX = column * CONFIG.SPRITE_SIZE;
       const sourceY = row * CONFIG.SPRITE_SIZE;
-      
+
       // Draw tile stretched/shrunk to target size
       image(
         appState.tileset,
@@ -486,7 +503,7 @@
         sourceX, sourceY, CONFIG.SPRITE_SIZE, CONFIG.SPRITE_SIZE
       );
     }
-    
+
     /**
      * Processes a batch of tiles (called each frame during processing)
      * Continues from appState.currentRow and appState.currentCol
@@ -496,45 +513,45 @@
       if (appState.state !== ProcessingState.PROCESSING) {
         return;
       }
-      
+
       let tilesProcessed = 0;
       const startRow = appState.currentRow;
       const startCol = appState.currentCol;
-      
+
       while (tilesProcessed < appState.tilesPerFrame) {
         // Check if completed all rows
         if (appState.currentRow >= appState.tilesPerCol) {
           handleProcessingComplete();
           break;
         }
-        
+
         const x = appState.currentCol * appState.tileSize;
         const y = appState.currentRow * appState.tileSize;
-        
+
         // Safety check: skip if out of bounds
         if (x >= appState.canvasWidth || y >= appState.canvasHeight) {
           advanceToNextTile();
           continue;
         }
-        
+
         // Calculate and place tile
         const brightness = calculateRegionBrightness(x, y, appState.tileSize);
         renderTile(x, y, brightness);
-        
+
         // Move to next tile position
         advanceToNextTile();
         tilesProcessed++;
       }
-      
+
       // Debug logging for first batch only
       if (startRow === 0 && startCol === 0) {
         console.log(`First batch: processed ${tilesProcessed} tiles, now at [${appState.currentRow},${appState.currentCol}]`);
       }
-      
+
       // Update progress display
       updateProgressDisplay();
     }
-    
+
     /**
      * Advances tile position to next in grid (left-to-right, top-to-bottom)
      */
@@ -549,7 +566,7 @@
     // ============================================================================
     // STATE MANAGEMENT
     // ============================================================================
-    
+
     /**
      * Checks if currently processing tiles
      * @returns {boolean}
@@ -557,7 +574,7 @@
     function isProcessing() {
       return appState.state === ProcessingState.PROCESSING;
     }
-    
+
     /**
      * Checks if assets are loaded and ready
      * @returns {boolean}
@@ -565,7 +582,7 @@
     function isReady() {
       return appState.sourceImage !== null && appState.tileset !== null;
     }
-    
+
     /**
      * Resets processing position to start
      */
@@ -573,7 +590,7 @@
       appState.currentRow = 0;
       appState.currentCol = 0;
     }
-    
+
     /**
      * Initiates processing from the beginning
      */
@@ -582,32 +599,32 @@
         setStatus('ERROR: LOAD IMAGE & TILESET', ProcessingState.ERROR);
         return;
       }
-      
+
       // Validate settings (warns but doesn't block)
       validateSettings();
-      
+
       // Reset state FIRST before anything else
       resetProcessingPosition();
-      
+
       // Recalculate layout and resize canvas
       calculateTileLayout();
       resizeCanvas(appState.canvasWidth, appState.canvasHeight);
       background(255);
-      
+
       // Set processing state AFTER canvas is ready
       appState.state = ProcessingState.PROCESSING;
-      
+
       // Update UI
       updateButtonStates();
       setStatus('PROCESSING: 0%', ProcessingState.PROCESSING);
-      
+
       // Start render loop LAST
       loop();
-      
+
       console.log(`Started: ${appState.tilesPerRow}×${appState.tilesPerCol} tiles @ ${appState.tileSize}px`);
       console.log(`Initial position: row=${appState.currentRow}, col=${appState.currentCol}`);
     }
-    
+
     /**
      * Pauses processing (can be resumed)
      */
@@ -616,7 +633,7 @@
       updateButtonStates();
       setStatus('PAUSED', ProcessingState.PAUSED);
     }
-    
+
     /**
      * Resumes paused processing
      */
@@ -625,7 +642,7 @@
       updateButtonStates();
       loop();
     }
-    
+
     /**
      * Handles processing completion
      */
@@ -640,7 +657,7 @@
     // ============================================================================
     // VIDEO STATE MANAGEMENT & PROCESSING
     // ============================================================================
-    
+
     /**
      * Converts ImageData to p5.Image
      * @param {ImageData} imageData
@@ -649,16 +666,16 @@
     function imageDataToP5Image(imageData) {
       const img = createImage(imageData.width, imageData.height);
       img.loadPixels();
-      
+
       // Copy pixel data
       for (let i = 0; i < imageData.data.length; i++) {
         img.pixels[i] = imageData.data[i];
       }
-      
+
       img.updatePixels();
       return img;
     }
-    
+
     /**
      * Calculates brightness from a p5.Image region
      * @param {p5.Image} img - Source image
@@ -670,21 +687,21 @@
     function calculateBrightnessFromImage(img, x, y, size) {
       const region = img.get(x, y, size, size);
       region.loadPixels();
-      
+
       const { LUMINANCE_R, LUMINANCE_G, LUMINANCE_B } = CONFIG;
       const pixelCount = region.pixels.length / 4;
       let totalBrightness = 0;
-      
+
       for (let i = 0; i < region.pixels.length; i += 4) {
         const r = region.pixels[i];
         const g = region.pixels[i + 1];
         const b = region.pixels[i + 2];
         totalBrightness += LUMINANCE_R * r + LUMINANCE_G * g + LUMINANCE_B * b;
       }
-      
+
       return totalBrightness / pixelCount;
     }
-    
+
     /**
      * Renders a tile to a graphics buffer
      * @param {p5.Graphics} buffer - Target buffer
@@ -696,17 +713,17 @@
     function renderTileToBuffer(buffer, x, y, brightness, size) {
       const column = brightnessToColumn(brightness);
       const row = selectRandomTileRow();
-      
+
       const sourceX = column * CONFIG.SPRITE_SIZE;
       const sourceY = row * CONFIG.SPRITE_SIZE;
-      
+
       buffer.image(
         appState.tileset,
         x, y, size, size,
         sourceX, sourceY, CONFIG.SPRITE_SIZE, CONFIG.SPRITE_SIZE
       );
     }
-    
+
     /**
      * Processes a single video frame into a photomosaic
      * @param {ImageData} frameData - Frame image data
@@ -716,36 +733,36 @@
     function processVideoFrame(frameData, frameIndex) {
       // Convert to p5.Image
       const frameImage = imageDataToP5Image(frameData);
-      
+
       // Calculate tile layout
       const tileSize = Math.round(frameData.width / videoState.tilesPerRow);
       const tilesWide = Math.floor(frameData.width / tileSize);
       const tilesHigh = Math.floor(frameData.height / tileSize);
-      
+
       // Create offscreen buffer for this frame
       const buffer = createGraphics(frameData.width, frameData.height);
       buffer.pixelDensity(1);
-      
+
       // Fill with white background to prevent transparency overlap
       buffer.background(255);
-      
+
       // Process all tiles in this frame
       for (let row = 0; row < tilesHigh; row++) {
         for (let col = 0; col < tilesWide; col++) {
           const x = col * tileSize;
           const y = row * tileSize;
-          
+
           // Calculate brightness
           const brightness = calculateBrightnessFromImage(frameImage, x, y, tileSize);
-          
+
           // Render tile to buffer
           renderTileToBuffer(buffer, x, y, brightness, tileSize);
         }
       }
-      
+
       return buffer;
     }
-    
+
     /**
      * Processes all extracted frames into photomosaics
      * Updates UI with progress
@@ -754,56 +771,56 @@
       if (videoState.extractedFrames.length === 0) {
         throw new Error('No frames to process');
       }
-      
+
       videoState.isProcessing = true;
       videoState.currentFrameIndex = 0;
       videoState.processedFrames = [];
-      
+
       ui.videoStatusText.textContent = 'PROCESSING FRAMES...';
       ui.videoPauseBtn.disabled = false;
-      
+
       const totalFrames = videoState.extractedFrames.length;
-      
+
       for (let i = 0; i < totalFrames; i++) {
         // Check for pause
         while (videoState.isPaused) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
-        
+
         const frameData = videoState.extractedFrames[i];
-        
+
         // Process frame
         const processedFrame = processVideoFrame(frameData, i);
         videoState.processedFrames.push(processedFrame);
-        
+
         videoState.currentFrameIndex = i + 1;
-        
+
         // Update progress
         const percent = ((i + 1) / totalFrames * 100).toFixed(1);
         ui.videoStatusText.textContent = `PROCESSING: ${percent}% (${i + 1}/${totalFrames})`;
-        
+
         // Show preview on canvas every frame (clear first to avoid overlap)
         background(255);
         image(processedFrame, 0, 0);
-        
+
         // Allow UI to breathe
         await new Promise(resolve => setTimeout(resolve, 0));
       }
-      
+
       videoState.isProcessing = false;
       videoState.isComplete = true;
-      
+
       ui.videoStatusText.textContent = `PROCESSING COMPLETE - ${totalFrames} FRAMES READY`;
       ui.videoPauseBtn.disabled = true;
       ui.videoResumeBtn.disabled = true;
       ui.videoDownloadBtn.disabled = false;
-      
+
       // Show final frame
       image(videoState.processedFrames[totalFrames - 1], 0, 0);
-      
+
       console.log(`Processed ${totalFrames} frames successfully`);
     }
-    
+
     /**
      * Starts video processing workflow
      */
@@ -811,124 +828,124 @@
       console.log('startVideoProcessing called');
       console.log('videoState.sourceVideo:', videoState.sourceVideo);
       console.log('appState.tileset:', appState.tileset);
-      
+
       if (!videoState.sourceVideo) {
         ui.videoStatusText.textContent = 'ERROR: NO VIDEO LOADED';
         return;
       }
-      
+
       if (!appState.tileset) {
         ui.videoStatusText.textContent = 'ERROR: TILESET NOT LOADED';
         return;
       }
-      
+
       try {
         // Disable start button
         ui.videoStartBtn.disabled = true;
-        
+
         // Resize canvas to match video dimensions
         resizeCanvas(videoState.width, videoState.height);
         background(255);
-        
+
         // Step 1: Extract frames
         await extractAllFrames();
-        
+
         // Step 2: Process frames into photomosaics
         await processAllFrames();
-        
+
         console.log('Video processing workflow complete!');
-        
+
       } catch (error) {
         console.error('Video processing error:', error);
         ui.videoStatusText.textContent = `ERROR: ${error.message}`;
         ui.videoStartBtn.disabled = false;
       }
     }
-    
+
     /**
      * Exports processed video as ZIP or GIF
      */
     async function exportVideo() {
       console.log('Export video called');
-      
+
       if (videoState.processedFrames.length === 0) {
         ui.videoStatusText.textContent = 'ERROR: NO FRAMES TO EXPORT';
         return;
       }
-      
+
       ui.videoDownloadBtn.disabled = true;
-      
+
       if (videoState.exportFormat === 'zip') {
         await exportAsZip();
       } else if (videoState.exportFormat === 'gif') {
         await exportAsGIF();
       }
-      
+
       ui.videoDownloadBtn.disabled = false;
     }
-    
+
     /**
      * Exports frames as ZIP of PNG images
      */
     async function exportAsZip() {
       const zip = new JSZip();
       const frameFolder = zip.folder('frames');
-      
+
       ui.videoStatusText.textContent = 'EXPORTING ZIP...';
-      
+
       const totalFrames = videoState.processedFrames.length;
-      
+
       for (let i = 0; i < totalFrames; i++) {
         const frame = videoState.processedFrames[i];
-        
+
         // Convert canvas to blob
         const blob = await new Promise(resolve => {
           frame.canvas.toBlob(resolve, 'image/png');
         });
-        
+
         // Add to zip with zero-padded filename
         const filename = `frame_${String(i).padStart(5, '0')}.png`;
         frameFolder.file(filename, blob);
-        
+
         // Update progress
         const percent = ((i + 1) / totalFrames * 100).toFixed(1);
         ui.videoStatusText.textContent = `EXPORTING: ${percent}% (${i + 1}/${totalFrames})`;
-        
+
         // Allow UI to breathe
         if (i % 5 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      
+
       // Generate ZIP file
       ui.videoStatusText.textContent = 'GENERATING ZIP FILE...';
-      const zipBlob = await zip.generateAsync({ 
+      const zipBlob = await zip.generateAsync({
         type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 }
       });
-      
+
       // Download
       const timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
       const filename = `weaver-video-${videoState.processedFrames.length}frames-${timestamp}.zip`;
-      
+
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      
+
       ui.videoStatusText.textContent = `ZIP DOWNLOADED - ${totalFrames} FRAMES`;
       console.log(`Exported ${totalFrames} frames as ZIP`);
     }
-    
+
     /**
      * Exports frames as animated GIF
      */
     async function exportAsGIF() {
       ui.videoStatusText.textContent = 'CREATING GIF...';
-      
+
       const gif = new GIF({
         workers: 2,
         quality: 10,
@@ -936,53 +953,53 @@
         height: videoState.processedFrames[0].height,
         workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
       });
-      
+
       const totalFrames = videoState.processedFrames.length;
       const delay = Math.round(1000 / videoState.targetFramerate);
-      
+
       // Add each frame
       for (let i = 0; i < totalFrames; i++) {
         gif.addFrame(videoState.processedFrames[i].canvas, { delay: delay, copy: true });
-        
+
         const percent = ((i + 1) / totalFrames * 100).toFixed(1);
         ui.videoStatusText.textContent = `ADDING FRAMES: ${percent}% (${i + 1}/${totalFrames})`;
-        
+
         // Allow UI to breathe
         if (i % 5 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      
+
       // Render GIF (this takes a while)
       ui.videoStatusText.textContent = 'RENDERING GIF (THIS MAY TAKE A WHILE)...';
-      
+
       gif.on('progress', (progress) => {
         const percent = (progress * 100).toFixed(1);
         ui.videoStatusText.textContent = `RENDERING GIF: ${percent}%`;
       });
-      
+
       gif.on('finished', (blob) => {
         const timestamp = `${year()}${nf(month(), 2)}${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}${nf(second(), 2)}`;
         const filename = `weaver-video-${totalFrames}frames-${timestamp}.gif`;
-        
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-        
+
         ui.videoStatusText.textContent = `GIF DOWNLOADED - ${totalFrames} FRAMES`;
         console.log(`Exported ${totalFrames} frames as GIF`);
       });
-      
+
       gif.render();
     }
 
     // ============================================================================
     // UI UPDATES
     // ============================================================================
-    
+
     /**
      * Updates all display elements
      */
@@ -991,30 +1008,30 @@
       updateTotalTilesDisplay();
       updateResolutionDisplay();
     }
-    
+
     /**
      * Updates tile size display
      */
     function updateTileSizeDisplay() {
       ui.tileSizeDisplay.textContent = `${appState.tileSize} × ${appState.tileSize} px`;
     }
-    
+
     /**
      * Updates total tiles display
      */
     function updateTotalTilesDisplay() {
       const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
-      ui.totalTilesDisplay.textContent = 
+      ui.totalTilesDisplay.textContent =
         `${totalTiles.toLocaleString()} tiles (${appState.tilesPerRow}×${appState.tilesPerCol})`;
     }
-    
+
     /**
      * Updates resolution value display
      */
     function updateResolutionDisplay() {
       ui.resValue.textContent = appState.tilesPerRow;
     }
-    
+
     /**
      * Updates processing progress percentage
      */
@@ -1024,7 +1041,7 @@
       const percent = Math.min(100, ((currentTile / totalTiles) * 100)).toFixed(1);
       ui.statusText.textContent = `PROCESSING: ${percent}%`;
     }
-    
+
     /**
      * Sets status text and optionally updates state
      * @param {string} message - Status message
@@ -1036,13 +1053,13 @@
         appState.state = state;
       }
     }
-    
+
     /**
      * Updates button enabled/disabled states based on current app state
      */
     function updateButtonStates() {
       const { state } = appState;
-      
+
       ui.startBtn.disabled = (state === ProcessingState.PROCESSING);
       ui.pauseBtn.disabled = (state !== ProcessingState.PROCESSING);
       ui.resumeBtn.disabled = (state !== ProcessingState.PAUSED);
@@ -1052,7 +1069,7 @@
     // ============================================================================
     // VALIDATION
     // ============================================================================
-    
+
     /**
      * Validates current settings and displays warnings
      * @returns {boolean} - True if settings are within safe limits
@@ -1060,28 +1077,28 @@
     function validateSettings() {
       const warnings = [];
       const totalTiles = appState.tilesPerRow * appState.tilesPerCol;
-      
+
       // Check tile count thresholds
       if (totalTiles > CONFIG.WARNING_TILE_COUNT_EXTREME) {
         warnings.push(`EXTREME TILE COUNT (${totalTiles.toLocaleString()}) - Processing will be very slow`);
       } else if (totalTiles > CONFIG.WARNING_TILE_COUNT_HIGH) {
         warnings.push(`HIGH TILE COUNT (${totalTiles.toLocaleString()}) - May cause slowdown`);
       }
-      
+
       // Check tile size thresholds
       if (appState.tileSize < CONFIG.WARNING_TILE_SIZE_SMALL) {
         warnings.push(`TILES TOO SMALL (${appState.tileSize}px) - Results may look pixelated`);
       } else if (appState.tileSize > CONFIG.WARNING_TILE_SIZE_LARGE) {
         warnings.push(`TILES TOO LARGE (${appState.tileSize}px) - Consider higher resolution`);
       }
-      
+
       // Cap maximum resolution
       if (appState.tilesPerRow > CONFIG.MAX_TILES_PER_ROW) {
         appState.tilesPerRow = CONFIG.MAX_TILES_PER_ROW;
         ui.resolution.value = CONFIG.MAX_TILES_PER_ROW;
         warnings.push(`RESOLUTION CAPPED AT ${CONFIG.MAX_TILES_PER_ROW} - Maximum safe limit reached`);
       }
-      
+
       // Display first warning (if any)
       if (warnings.length > 0) {
         ui.warningText.textContent = warnings[0];
@@ -1089,21 +1106,21 @@
       } else {
         ui.validationWarning.classList.add('hidden');
       }
-      
+
       return warnings.length === 0;
     }
 
     // ============================================================================
     // FILE HANDLING
     // ============================================================================
-    
+
     /**
      * Handles source image upload
      * @param {File} file - Uploaded image file
      */
     function handleImageUpload(file) {
       if (!file) return;
-      
+
       const reader = new FileReader();
       reader.onload = (event) => {
         loadImage(event.target.result, (img) => {
@@ -1116,7 +1133,7 @@
       };
       reader.readAsDataURL(file);
     }
-    
+
     /**
      * Downloads completed canvas as PNG
      */
@@ -1129,7 +1146,7 @@
     // ============================================================================
     // VIDEO PROCESSING - Frame Extraction
     // ============================================================================
-    
+
     /**
      * Loads video file and extracts metadata
      * @param {File} file - Video or GIF file
@@ -1141,16 +1158,16 @@
         if (videoState.videoObjectURL) {
           URL.revokeObjectURL(videoState.videoObjectURL);
         }
-        
+
         // Create video element
         const video = document.createElement('video');
         videoState.videoObjectURL = URL.createObjectURL(file);
-        
+
         video.src = videoState.videoObjectURL;
         video.muted = true;
         video.playsInline = true;
         video.preload = 'metadata';
-        
+
         video.addEventListener('loadedmetadata', () => {
           // Store video metadata
           videoState.sourceVideo = video;
@@ -1159,25 +1176,25 @@
           videoState.width = video.videoWidth;
           videoState.height = video.videoHeight;
           videoState.totalFrames = Math.floor(video.duration * videoState.targetFramerate);
-          
+
           // Update UI
-          ui.videoInfoDisplay.textContent = 
+          ui.videoInfoDisplay.textContent =
             `${video.videoWidth}×${video.videoHeight} | ${video.duration.toFixed(1)}s`;
           ui.frameCountDisplay.textContent = `${videoState.totalFrames} frames`;
-          
+
           console.log(`Video loaded: ${video.videoWidth}×${video.videoHeight}, ${video.duration}s, ${videoState.totalFrames} frames`);
-          
+
           resolve(video);
         });
-        
+
         video.addEventListener('error', (e) => {
           reject(new Error('Failed to load video'));
         });
-        
+
         video.load();
       });
     }
-    
+
     /**
      * Extracts all frames from video as ImageData objects
      * @returns {Promise<Array<ImageData>>}
@@ -1186,51 +1203,51 @@
       if (!videoState.sourceVideo) {
         throw new Error('No video loaded');
       }
-      
+
       videoState.isExtracting = true;
       videoState.extractedFrames = [];
-      
+
       const video = videoState.sourceVideo;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       ui.videoStatusText.textContent = 'EXTRACTING FRAMES...';
-      
+
       // Extract frames sequentially
       for (let frameIndex = 0; frameIndex < videoState.totalFrames; frameIndex++) {
         const timeInSeconds = frameIndex / videoState.targetFramerate;
-        
+
         // Seek to frame time
         await seekToTime(video, timeInSeconds);
-        
+
         // Draw frame to canvas
         ctx.drawImage(video, 0, 0);
-        
+
         // Extract as ImageData
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         videoState.extractedFrames.push(imageData);
-        
+
         // Update progress
         const percent = ((frameIndex + 1) / videoState.totalFrames * 100).toFixed(1);
         ui.videoStatusText.textContent = `EXTRACTING: ${percent}% (${frameIndex + 1}/${videoState.totalFrames})`;
-        
+
         // Allow UI to breathe every 10 frames
         if (frameIndex % 10 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      
+
       videoState.isExtracting = false;
       ui.videoStatusText.textContent = `EXTRACTION COMPLETE - ${videoState.totalFrames} FRAMES READY`;
-      
+
       console.log(`Extracted ${videoState.extractedFrames.length} frames`);
-      
+
       return videoState.extractedFrames;
     }
-    
+
     /**
      * Helper: Seeks video to specific time
      * @param {HTMLVideoElement} video
@@ -1243,7 +1260,7 @@
           video.removeEventListener('seeked', onSeeked);
           resolve();
         };
-        
+
         video.addEventListener('seeked', onSeeked);
         video.currentTime = timeInSeconds;
       });
@@ -1252,75 +1269,75 @@
     // ============================================================================
     // MODE MANAGEMENT
     // ============================================================================
-    
+
     /**
      * Switches between image and video modes
      * @param {string} mode - 'image' or 'video'
      */
     function switchMode(mode) {
       appState.mode = mode;
-      
+
       if (mode === 'image') {
         // Show image controls, hide video controls
         ui.imageControls.style.display = 'block';
         ui.videoControls.style.display = 'none';
-        
+
         // Update tab styling
         ui.imageMode.classList.add('active-tab');
         ui.imageMode.classList.remove('bg-[#1a1a1a]', 'text-[#666]');
         ui.imageMode.classList.add('bg-[#f5f5f5]', 'text-[#0a0a0a]');
-        
+
         ui.videoMode.classList.remove('active-tab');
         ui.videoMode.classList.remove('bg-[#f5f5f5]', 'text-[#0a0a0a]');
         ui.videoMode.classList.add('bg-[#1a1a1a]', 'text-[#666]');
-        
+
       } else {
         // Show video controls, hide image controls
         ui.imageControls.style.display = 'none';
         ui.videoControls.style.display = 'block';
-        
+
         // Update tab styling
         ui.videoMode.classList.add('active-tab');
         ui.videoMode.classList.remove('bg-[#1a1a1a]', 'text-[#666]');
         ui.videoMode.classList.add('bg-[#f5f5f5]', 'text-[#0a0a0a]');
-        
+
         ui.imageMode.classList.remove('active-tab');
         ui.imageMode.classList.remove('bg-[#f5f5f5]', 'text-[#0a0a0a]');
         ui.imageMode.classList.add('bg-[#1a1a1a]', 'text-[#666]');
       }
-      
+
       console.log(`Switched to ${mode} mode`);
     }
 
     // ============================================================================
     // EVENT LISTENERS
     // ============================================================================
-    
+
     function setupEventListeners() {
       console.log('Setting up event listeners...');
       console.log('startVideoProcessing exists?', typeof startVideoProcessing);
       console.log('exportVideo exists?', typeof exportVideo);
-      
+
       // Mode switching
       ui.imageMode.addEventListener('click', () => switchMode('image'));
       ui.videoMode.addEventListener('click', () => switchMode('video'));
-      
+
       // Resolution slider
       ui.resolution.addEventListener('input', (e) => {
         appState.tilesPerRow = parseInt(e.target.value);
         calculateTileLayout();
       });
-      
+
       // Image upload
       ui.imageUpload.addEventListener('change', (e) => {
         handleImageUpload(e.target.files[0]);
       });
-      
+
       // Video upload
       ui.videoUpload.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         try {
           ui.videoStatusText.textContent = 'LOADING VIDEO...';
           await loadVideoFile(file);
@@ -1331,13 +1348,13 @@
           ui.videoStatusText.textContent = 'ERROR: FAILED TO LOAD VIDEO';
         }
       });
-      
+
       // Video resolution slider
       ui.videoResolution.addEventListener('input', (e) => {
         videoState.tilesPerRow = parseInt(e.target.value);
         ui.videoResValue.textContent = e.target.value;
       });
-      
+
       // Target FPS input
       ui.targetFPS.addEventListener('change', (e) => {
         const fps = parseInt(e.target.value);
@@ -1350,18 +1367,18 @@
           }
         }
       });
-      
+
       // Export format selector
       ui.exportFormat.addEventListener('change', (e) => {
         videoState.exportFormat = e.target.value;
       });
-      
+
       // Control buttons
       ui.startBtn.addEventListener('click', startProcessing);
       ui.pauseBtn.addEventListener('click', pauseProcessing);
       ui.resumeBtn.addEventListener('click', resumeProcessing);
       ui.downloadBtn.addEventListener('click', downloadCanvas);
-      
+
       // Video control buttons
       ui.videoStartBtn.addEventListener('click', () => {
         console.log('Video START button clicked');
@@ -1383,12 +1400,12 @@
     // ============================================================================
     // P5.JS LIFECYCLE
     // ============================================================================
-    
+
     function preload() {
       // Load tileset spritesheet
       appState.tileset = loadImage('tiles/tileset.png');
     }
-    
+
     function setup() {
       // Create canvas
       const canvas = createCanvas(appState.canvasWidth, appState.canvasHeight);
@@ -1396,20 +1413,20 @@
       pixelDensity(1);
       frameRate(CONFIG.TARGET_FRAMERATE);
       noLoop();
-      
+
       // Calculate tileset dimensions
       appState.tilesetRows = appState.tileset.height / CONFIG.SPRITE_SIZE;
-      
+
       // Initialize UI
       calculateTileLayout();
       setupEventListeners();
       updateButtonStates();
-      
+
       setStatus('READY - LOAD SOURCE IMAGE', ProcessingState.IDLE);
-      
+
       console.log(`Weaver v0.4 initialized - Tileset: ${CONFIG.TILESET_COLUMNS}×${appState.tilesetRows}`);
     }
-    
+
     function draw() {
       // Process tiles if in processing state
       if (isProcessing()) {
@@ -1418,4 +1435,5 @@
     }
   </script>
 </body>
+
 </html>
