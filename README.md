@@ -7,19 +7,14 @@ Convert images and videos into photomosaics using a custom tileset. Weaver analy
 - Python 3.7+
 - Required dependencies:
   ```bash
-  pip install pillow numpy tqdm
-  ```
-
-- Optional (for video processing):
-  ```bash
-  pip install moviepy imageio imageio-ffmpeg
+  pip install pillow numpy tqdm moviepy imageio imageio-ffmpeg
   ```
 
 ## Tileset Setup
 
-Weaver requires a tileset spritesheet at `tiles/tileset.png` (or specify a custom path with `--tileset`).
+Weaver requires a tileset spritesheet at `tiles/tileset.png` (or specify a custom path with `--tileset`). A default one is included, as is an Illustrator file from which the tileset was exported. The tileset is a spritesheet of 50px x 50px tiles, and expected to be a width of 400px, and an arbitrary, n * 50px height. Columns represent brightness, while the height gives Weaver more options to randomly choose from for the sake of variation.
 
-**Tileset format:**
+**TLDR; Tileset format:**
 - Grid of 50×50px tiles
 - 8 columns representing brightness levels (0=darkest, 7=brightest)
 - Multiple rows for variation at each brightness level
