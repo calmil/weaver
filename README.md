@@ -1,6 +1,6 @@
-# WEAVER - Photomosaic Processor
+# Weaver, Photomosaic Processor
 
-Convert images and videos into photomosaics using a custom tileset. Weaver analyzes the brightness of regions in your source media and replaces them with matching tiles from a spritesheet.
+Convert images and videos into photomosaics using a custom tileset. Weaver analyzes the brightness of regions in your source media and replaces them with matching tiles from a spritesheet. These can then be re-stitched into dynamic, mosaic videos. 
 
 ## Requirements
 
